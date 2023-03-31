@@ -4,10 +4,10 @@ pragma experimental ABIEncoderV2;
 
 import "./base/AuraStrategyBatchSwapUL.sol";
 
-contract AuraStrategyMainnet_bbaUSD is AuraStrategyBatchSwapUL {
+contract AuraStrategyMainnet_bbiUSD is AuraStrategyBatchSwapUL {
 
     //Differentiator for the bytecode
-    address public bbaUSD_unused;
+    address public bbiUSD_unused;
 
     constructor() public {}
 
@@ -15,18 +15,17 @@ contract AuraStrategyMainnet_bbaUSD is AuraStrategyBatchSwapUL {
         address _storage, // Harvest: Storage
         address _vault // Harvest: Vault
     ) public initializer {
-        address underlying = address(0xA13a9247ea42D743238089903570127DdA72fE44); // Balancer: Balancer Aave Boosted StablePool
-        address rewardPool = address(0xFb6b1c1A1eA5618b3CfC20F81a11A97E930fA46B); // Aura: Balancer Aave Boosted StablePool Aura Deposit Vault
+        address underlying = address(0x60683B05e9a39E3509D8fdb9C959f23170f8A0fa); // Balancer: Balancer Idle Boosted StablePool
+        address rewardPool = address(0x4d585a29dF0a8E18c26f662C6586ded6703062a8); // Aura: Balancer Idle Boosted StablePool Aura Deposit Vault
         bytes32 wETH_USDC = bytes32(0x96646936b91d6b9d7d0c47c496afbf3d6ec7b6f8000200000000000000000019);
-        bytes32 USDC_bbaUSDC = bytes32(0x82698aecc9e28e9bb27608bd52cf57f704bd1b83000000000000000000000336);
-        bytes32 bbaUSDC_bbaUSD = bytes32(0xa13a9247ea42d743238089903570127dda72fe4400000000000000000000035d);
+        bytes32 USDC_bbiUSDC = bytes32(0xbc0f2372008005471874e426e86ccfae7b4de79d000000000000000000000485);
+        bytes32 bbiUSDC_bbiUSD = bytes32(0x60683b05e9a39e3509d8fdb9c959f23170f8a0fa000000000000000000000489);
         address usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-        address bbaUSDC = address(0x82698aeCc9E28e9Bb27608Bd52cF57f704BD1B83);
-        address bbaUSD = address(0xA13a9247ea42D743238089903570127DdA72fE44);
+        address bbiUSDC = address(0xbc0F2372008005471874e426e86CCFae7B4De79d);
 
-        // WETH -> USDC -> bb-a-USDC -> bb-a-USD
-        swapAssets = [weth, usdc, bbaUSDC, bbaUSD];
-        swapPoolIds = [wETH_USDC, USDC_bbaUSDC, bbaUSDC_bbaUSD];
+        // WETH -> USDC -> bb-i-USDC -> bb-i-USD
+        swapAssets = [weth, usdc, bbiUSDC, underlying];
+        swapPoolIds = [wETH_USDC, USDC_bbiUSDC, bbiUSDC_bbiUSD];
 
         rewardTokens = [bal, aura];
         storedLiquidationPaths[bal][weth] = [bal, weth];
@@ -38,7 +37,7 @@ contract AuraStrategyMainnet_bbaUSD is AuraStrategyBatchSwapUL {
             underlying,
             _vault,
             rewardPool,
-            2, // Aura: PoolId
+            72, // Aura: PoolId
             weth, //Balancer: Deposit Token
             500
         );

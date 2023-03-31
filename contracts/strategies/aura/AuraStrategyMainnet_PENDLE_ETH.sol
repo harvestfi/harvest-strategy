@@ -4,10 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./base/AuraStrategyJoinPoolUL.sol";
 
-contract AuraStrategyMainnet_COMP is AuraStrategyJoinPoolUL {
-
-    //Differentiator for the bytecode
-    address public COMP50_WETH50_unused;
+contract AuraStrategyMainnet_PENDLE_ETH is AuraStrategyJoinPoolUL {
 
     constructor() public {}
 
@@ -15,11 +12,11 @@ contract AuraStrategyMainnet_COMP is AuraStrategyJoinPoolUL {
         address _storage, // Harvest: Storage
         address _vault // Harvest: Vault
     ) public initializer {
-        address underlying = address(0xEFAa1604e82e1B3AF8430b90192c1B9e8197e377); // Balancer: Balancer 50 COMP 50 WETH
-        address rewardPool = address(0x724C6D29f23F6Bd671B0d9305AAB6e7d9d8b8bE0); // Aura: Balancer 50 COMP 50 WETH Aura Deposit Vault
-        address comp = address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
+        address underlying = address(0xFD1Cf6FD41F229Ca86ada0584c63C49C3d66BbC9);
+        address rewardPool = address(0x08129a472dfb92A1596Bbe31f27c53914a990563);
+        address pendle = address(0x808507121B80c02388fAd14726482e061B8da827);
 
-        poolAssets = [comp, weth];
+        poolAssets = [pendle, weth];
         rewardTokens = [bal, aura];
         storedLiquidationPaths[bal][weth] = [bal, weth];
         storedLiquidationDexes[bal][weth] = [balancerDex];
@@ -31,11 +28,11 @@ contract AuraStrategyMainnet_COMP is AuraStrategyJoinPoolUL {
             underlying,
             _vault,
             rewardPool,
-            32, // Aura: PoolId
-            0xefaa1604e82e1b3af8430b90192c1b9e8197e377000200000000000000000021, // Balancer: PoolId
+            61, // Aura: PoolId
+            0xfd1cf6fd41f229ca86ada0584c63c49c3d66bbc9000200000000000000000438, // Balancer: PoolId
             weth, //Balancer: Deposit Token
             1, // Balancer: Deposit Array Position
-            1000
+            500
         );
     }
 }

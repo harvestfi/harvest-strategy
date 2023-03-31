@@ -4,10 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import "./base/AuraStrategyJoinPoolUL.sol";
 
-contract AuraStrategyMainnet_stETH is AuraStrategyJoinPoolUL {
-
-    //Differentiator for the bytecode
-    address public stETH_Stable_unused;
+contract AuraStrategyMainnet_rETH_BADGER is AuraStrategyJoinPoolUL {
 
     constructor() public {}
 
@@ -15,25 +12,29 @@ contract AuraStrategyMainnet_stETH is AuraStrategyJoinPoolUL {
         address _storage, // Harvest: Storage
         address _vault // Harvest: Vault
     ) public initializer {
-        address underlying = address(0x32296969Ef14EB0c6d29669C550D4a0449130230); // Balancer: Balancer stETH Stable Pool
-        address rewardPool = address(0xe4683Fe8F53da14cA5DAc4251EaDFb3aa614d528); // Aura: Balancer stETH Stable Pool Aura Deposit Vault
-        address wstEth = address(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
+        address underlying = address(0x1ee442b5326009Bb18F2F472d3e0061513d1A0fF);
+        address rewardPool = address(0xAAd4eE162Dbc9C25cCa26bA4340B36E3eF7C1A80);
+        address reth = address(0xae78736Cd615f374D3085123A210448E74Fc6393);
+        address badger = address(0x3472A5A71965499acd81997a54BBA8D852C6E53d);
+        bytes32 uniV3Dex = bytes32(0x8f78a54cb77f4634a5bf3dd452ed6a2e33432c73821be59208661199511cd94f);
 
-        poolAssets = [wstEth, weth];
+        poolAssets = [badger, reth];
         rewardTokens = [bal, aura];
         storedLiquidationPaths[bal][weth] = [bal, weth];
         storedLiquidationDexes[bal][weth] = [balancerDex];
         storedLiquidationPaths[aura][weth] = [aura, weth];
         storedLiquidationDexes[aura][weth] = [balancerDex];
+        storedLiquidationPaths[weth][reth] = [weth, reth];
+        storedLiquidationDexes[weth][reth] = [uniV3Dex];
 
         AuraStrategyJoinPoolUL.initializeBaseStrategy(
             _storage,
             underlying,
             _vault,
             rewardPool,
-            29, // Aura: PoolId
-            0x32296969ef14eb0c6d29669c550d4a0449130230000200000000000000000080, // Balancer: PoolId
-            weth, //Balancer: Deposit Token
+            67, // Aura: PoolId
+            0x1ee442b5326009bb18f2f472d3e0061513d1a0ff000200000000000000000464, // Balancer: PoolId
+            reth, //Balancer: Deposit Token
             1, // Balancer: Deposit Array Position
             500
         );
