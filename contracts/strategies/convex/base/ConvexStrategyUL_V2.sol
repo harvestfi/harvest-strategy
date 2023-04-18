@@ -9,6 +9,7 @@ import "../../../base/upgradability/BaseUpgradeableStrategyUL.sol";
 import "../interface/IBooster.sol";
 import "../interface/IBaseRewardPool.sol";
 import "../../../base/interface/curve/ICurveDeposit_2token.sol";
+import "../../../base/interface/curve/ICurveDeposit_2token_new.sol";
 import "../../../base/interface/curve/ICurveDeposit_3token.sol";
 import "../../../base/interface/curve/ICurveDeposit_3token_meta.sol";
 import "../../../base/interface/curve/ICurveDeposit_4token.sol";
@@ -292,7 +293,7 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
       depositArray[depositArrayPosition()] = tokenBalance;
       if (_depositToken == weth){
         WETH9(weth).withdraw(tokenBalance);
-        ICurveDeposit_2token(_curveDeposit).add_liquidity.value(tokenBalance)(depositArray, minimum);
+        ICurveDeposit_2token_new(_curveDeposit).add_liquidity.value(tokenBalance)(depositArray, minimum, true);
       } else {
         ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
       }

@@ -11,7 +11,7 @@ const hodlVault = "0xF49440C1F012d041802b25A73e5B0B9166a75c02";
 const crv = "0xD533a949740bb3306d119CC777fa900bA034cd52";
 const cvx = "0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B";
 const weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-const governance = "0xf00dD244228F51547f0563e60bCa65a30FBF5f7f";
+const governance = "0xF066789028fE31D4f53B69B81b328B8218Cc0641";
 
 class ConvexULTest {
     constructor(){}
@@ -109,7 +109,7 @@ class ConvexULTest {
     async setupBalance(underlyingWhale){
         let etherGiver = this.accounts[9];
         // Give whale some ether to make sure the following actions are good
-        await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 1e18});
+        await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
 
         this.farmerBalance = await this.underlying.balanceOf(underlyingWhale);
         await this.underlying.transfer(this.farmer1, this.farmerBalance, { from: underlyingWhale });
