@@ -32,12 +32,14 @@ contract ConvexStrategyCvxFXSMainnet is ConvexStrategyUL_V2 {
       false, //metaPool -> if LP token address == pool address (at curve)
       500 // hodlRatio 5%
     );
-    rewardTokens = [crv, cvx];
+    rewardTokens = [crv, cvx, fxs];
     storedLiquidationPaths[crv][weth] = [crv, weth];
     storedLiquidationDexes[crv][weth] = [sushiDex];
     storedLiquidationPaths[cvx][weth] = [cvx, weth];
     storedLiquidationDexes[cvx][weth] = [sushiDex];
     storedLiquidationPaths[weth][fxs] = [weth, fxs];
     storedLiquidationDexes[weth][fxs] = [sushiDex];
+    storedLiquidationPaths[fxs][weth] = [fxs, weth];
+    storedLiquidationDexes[fxs][weth] = [sushiDex];
   }
 }
