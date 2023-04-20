@@ -31,7 +31,7 @@ contract ApeStakeStrategy is IStrategy, BaseUpgradeableStrategy {
             _vault: _vault,
             _rewardPool: _rewardPool,
             _rewardToken: APE,
-            _profitSharingNumerator: 300,
+            _profitSharingNumerator: 150,
             _profitSharingDenominator: 1000,
             _sell: true,
             _sellFloor: 0,

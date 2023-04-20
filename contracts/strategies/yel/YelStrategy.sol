@@ -47,7 +47,7 @@ contract YelStrategy is IStrategy, BaseUpgradeableStrategy {
       _vault,
       _rewardPool,
       _rewardToken,
-      300, // profit sharing numerator
+      150, // profit sharing numerator
       1000, // profit sharing denominator
       true, // sell
       1e18, // sell floor

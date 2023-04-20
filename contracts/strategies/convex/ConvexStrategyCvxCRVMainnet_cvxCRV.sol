@@ -24,7 +24,7 @@ contract ConvexStrategyCvxCRVMainnet_cvxCRV is ConvexStrategyCvxCRV {
       rewardPool,
       crvDeposit,
       cvxCrvSwap,
-      1000 // hodlRatio 10%
+      500 // hodlRatio 5%
     );
     rewardTokens = [crv, cvx, threeCrvToken];
     storedLiquidationPaths[cvx][crv] = [cvx, crv];
