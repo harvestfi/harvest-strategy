@@ -51,13 +51,13 @@ contract ConvexStrategyCvxCRV is IStrategy, BaseUpgradeableStrategyUL {
   ) public initializer {
 
     // calculate profit sharing fee depending on hodlRatio
-    uint256 profitSharingNumerator = 300;
-    if (_hodlRatio >= 3000) {
+    uint256 profitSharingNumerator = 150;
+    if (_hodlRatio >= 1500) {
       profitSharingNumerator = 0;
     } else if (_hodlRatio > 0){
       // (profitSharingNumerator - hodlRatio/10) * hodlRatioBase / (hodlRatioBase - hodlRatio)
-      // e.g. with default values: (300 - 1000 / 10) * 10000 / (10000 - 1000)
-      // = (300 - 100) * 10000 / 9000 = 222
+      // e.g. with default values: (150 - 1000 / 10) * 10000 / (10000 - 500)
+      // = (150 - 50) * 10000 / 9500 = 105
       profitSharingNumerator = profitSharingNumerator.sub(_hodlRatio.div(10)) // subtract hodl ratio from profit sharing numerator
                                     .mul(hodlRatioBase) // multiply with hodlRatioBase
                                     .div(hodlRatioBase.sub(_hodlRatio)); // divide by hodlRatioBase minus hodlRatio
@@ -87,13 +87,13 @@ contract ConvexStrategyCvxCRV is IStrategy, BaseUpgradeableStrategyUL {
   }
 
   function setHodlRatio(uint256 _value) public onlyGovernance {
-    uint256 profitSharingNumerator = 300;
-    if (_value >= 3000) {
+    uint256 profitSharingNumerator = 150;
+    if (_value >= 1500) {
       profitSharingNumerator = 0;
     } else if (_value > 0){
       // (profitSharingNumerator - hodlRatio/10) * hodlRatioBase / (hodlRatioBase - hodlRatio)
-      // e.g. with default values: (300 - 1000 / 10) * 10000 / (10000 - 1000)
-      // = (300 - 100) * 10000 / 9000 = 222
+      // e.g. with default values: (150 - 1000 / 10) * 10000 / (10000 - 500)
+      // = (150 - 50) * 10000 / 9500 = 105
       profitSharingNumerator = profitSharingNumerator.sub(_value.div(10)) // subtract hodl ratio from profit sharing numerator
                                     .mul(hodlRatioBase) // multiply with hodlRatioBase
                                     .div(hodlRatioBase.sub(_value)); // divide by hodlRatioBase minus hodlRatio
