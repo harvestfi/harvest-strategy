@@ -293,7 +293,7 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
       depositArray[depositArrayPosition()] = tokenBalance;
       if (_depositToken == weth){
         WETH9(weth).withdraw(tokenBalance);
-        ICurveDeposit_2token_new(_curveDeposit).add_liquidity.value(tokenBalance)(depositArray, minimum, true);
+        ICurveDeposit_2token(_curveDeposit).add_liquidity.value(tokenBalance)(depositArray, minimum);
       } else {
         ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
       }
