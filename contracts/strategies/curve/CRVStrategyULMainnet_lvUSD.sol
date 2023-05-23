@@ -1,6 +1,6 @@
 pragma solidity 0.5.16;
 
-import "./CRVStrategyUL.sol";
+import "./base/CRVStrategyUL.sol";
 
 contract CRVStrategyULMainnet_lvUSD is CRVStrategyUL {
 
@@ -24,11 +24,12 @@ contract CRVStrategyULMainnet_lvUSD is CRVStrategyUL {
       _storage,
       underlying,
       _vault,
-      gauge, // rewardPool
-      usdc, // depositToken
-      2, //depositArrayPosition. Find deposit transaction -> input params
+      gauge,        // rewardPool
+      usdc,         // depositToken
+      2,            // depositArrayPosition. Find deposit transaction -> input params
       curveDeposit, // deposit contract: usually underlying. Find deposit transaction -> interacted contract
-      500 // hodlRatio 5%
+      4,            // nTokens
+      500           // hodlRatio 5%
     );
     rewardTokens = [crv, arch];
     storedLiquidationPaths[crv][usdc] = [crv, weth, usdc];
