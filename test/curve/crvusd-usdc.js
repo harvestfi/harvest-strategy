@@ -6,21 +6,19 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const Strategy = artifacts.require("CRVStrategyULMainnet_crvUSD_USDT");
+const Strategy = artifacts.require("CRVStrategyULMainnet_crvUSD_USDC");
 
-//This test was developed at blockNumber 17307915
+//This test was developed at blockNumber 17313700
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Curve crvUSD-USDT", function() {
+describe("Mainnet Curve crvUSD-USDC", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0xC62eECc24cb6E84dA2409e945Ddcf7386118c57a";
-  let weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-  let usdt = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
+  let underlyingWhale = "0xbabe61887f1de2713c6f97e567623453d3C79f67";
 
   // parties in the protocol
   let governance;
@@ -35,7 +33,7 @@ describe("Mainnet Curve crvUSD-USDT", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x390f3595bCa2Df7d23783dFd126427CCeb997BF4");
+    underlying = await IERC20.at("0x4DEcE678ceceb27446b35C672dC7d61F30bAD69E");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -65,7 +63,6 @@ describe("Mainnet Curve crvUSD-USDT", function() {
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
-      "liquidation": [{"uniV3": [weth, usdt]}]
     });
 
     // whale send underlying to farmers
