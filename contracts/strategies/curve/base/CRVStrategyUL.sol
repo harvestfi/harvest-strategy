@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../../base/interface/IStrategy.sol";
 import "../../../base/upgradability/BaseUpgradeableStrategyUL.sol";
+import "../../../base/interface/curve/ICurveDeposit_2token.sol";
 import "../../../base/interface/curve/ICurveDeposit_4token_meta.sol";
 import "../../../base/interface/curve/Gauge.sol";
 
@@ -22,6 +23,7 @@ contract CRVStrategyUL is IStrategy, BaseUpgradeableStrategyUL {
   bytes32 internal constant _CURVE_DEPOSIT_SLOT = 0xb306bb7adebd5a22f5e4cdf1efa00bc5f62d4f5554ef9d62c1b16327cd3ab5f9;
   bytes32 internal constant _HODL_RATIO_SLOT = 0xb487e573671f10704ed229d25cf38dda6d287a35872859d096c0395110a0adb1;
   bytes32 internal constant _HODL_VAULT_SLOT = 0xc26d330f887c749cb38ae7c37873ff08ac4bba7aec9113c82d48a0cf6cc145f2;
+  bytes32 internal constant _NTOKENS_SLOT = 0xbb60b35bae256d3c1378ff05e8d7bee588cd800739c720a107471dfa218f74c1;
 
   uint256 public constant hodlRatioBase = 10000;
   address[] public rewardTokens;
@@ -32,6 +34,7 @@ contract CRVStrategyUL is IStrategy, BaseUpgradeableStrategyUL {
     assert(_CURVE_DEPOSIT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.curveDeposit")) - 1));
     assert(_HODL_RATIO_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.hodlRatio")) - 1));
     assert(_HODL_VAULT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.hodlVault")) - 1));
+    assert(_NTOKENS_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nTokens")) - 1));
   }
 
   function initializeBaseStrategy(
@@ -42,6 +45,7 @@ contract CRVStrategyUL is IStrategy, BaseUpgradeableStrategyUL {
     address _depositToken,
     uint256 _depositArrayPosition,
     address _curveDeposit,
+    uint256 _nTokens,
     uint256 _hodlRatio
   ) public initializer {
 
@@ -72,11 +76,12 @@ contract CRVStrategyUL is IStrategy, BaseUpgradeableStrategyUL {
       address(0x7882172921E99d590E097cD600554339fBDBc480) //UL Registry
     );
 
-    address _lpt;
-    require(_depositArrayPosition < 4, "Deposit array position out of bounds");
+    require(1 < _nTokens && _nTokens < 5, "_nTokens should be 2, 3 or 4");
+    require(_depositArrayPosition < _nTokens, "Deposit array position out of bounds");
     _setDepositArrayPosition(_depositArrayPosition);
     _setDepositToken(_depositToken);
     _setCurveDeposit(_curveDeposit);
+    _setNTokens(_nTokens);
     setUint256(_HODL_RATIO_SLOT, _hodlRatio);
     setAddress(_HODL_VAULT_SLOT, multiSigAddr);
     rewardTokens = new address[](0);
@@ -246,11 +251,17 @@ contract CRVStrategyUL is IStrategy, BaseUpgradeableStrategyUL {
     IERC20(_depositToken).safeApprove(_curveDeposit, 0);
     IERC20(_depositToken).safeApprove(_curveDeposit, tokenBalance);
 
-    // we can accept 0 as minimum, this will be called only by trusted roles
-    uint256 minimum = 0;
-    uint256[4] memory depositArray;
-    depositArray[depositArrayPosition()] = tokenBalance;
-    ICurveDeposit_4token_meta(_curveDeposit).add_liquidity(underlying(), depositArray, minimum);
+    // we can accept 1 as minimum, this will be called only by trusted roles
+    uint256 minimum = 1;
+    if (nTokens() == 2) {
+      uint256[2] memory depositArray;
+      depositArray[depositArrayPosition()] = tokenBalance;
+      ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
+    } else if (nTokens() == 4) {
+      uint256[4] memory depositArray;
+      depositArray[depositArrayPosition()] = tokenBalance;
+      ICurveDeposit_4token_meta(_curveDeposit).add_liquidity(underlying(), depositArray, minimum);
+    }
   }
 
 
@@ -366,6 +377,14 @@ contract CRVStrategyUL is IStrategy, BaseUpgradeableStrategyUL {
 
   function curveDeposit() public view returns (address) {
     return getAddress(_CURVE_DEPOSIT_SLOT);
+  }
+
+  function _setNTokens(uint256 _value) internal {
+    setUint256(_NTOKENS_SLOT, _value);
+  }
+
+  function nTokens() public view returns (uint256) {
+    return getUint256(_NTOKENS_SLOT);
   }
 
   function finalizeUpgrade() external onlyGovernance {
