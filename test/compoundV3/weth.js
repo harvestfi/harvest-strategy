@@ -66,6 +66,8 @@ describe("Mainnet CompoundV3 WETH", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
+      "existingVaultAddress": "0xFE09e53A81Fe2808bc493ea64319109B5bAa573e",
+      "announceStrategy": true,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
