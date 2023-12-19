@@ -229,7 +229,7 @@ async function setupFactory() {
   await megaFactory.setVaultFactory(1 /* VaultType.Regular */, vaultFactory.address);
   await megaFactory.setVaultFactory(2 /* VaultType.UniV3 */, uniV3FactoryAddress); // deployed separately
 
-  await uniV3Factory.setWhitelist(megaFactory.address, true);
+  await uniV3Factory.setWhitelist(megaFactory.address, true, {from: "0xF066789028fE31D4f53B69B81b328B8218Cc0641"});
 
   await megaFactory.setPotPoolFactory(potPoolFactory.address);
   await megaFactory.setStrategyFactory(1 /* StrategyType.Upgradable */, upgradableStrategyFactory.address);
