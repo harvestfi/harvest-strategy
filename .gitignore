@@ -5,6 +5,8 @@ cache
 artifacts
 deployments
 
+scripts/core
+
 dev-keys.json
 package-lock.json
 

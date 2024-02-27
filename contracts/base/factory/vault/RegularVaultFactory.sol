@@ -15,7 +15,7 @@ contract RegularVaultFactory is OwnableWhitelist, IVaultFactory {
     IVault(lastDeployedAddress).initializeVault(
       _storage,
       underlying,
-      9700,
+      10000,
       10000
     );
 

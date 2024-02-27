@@ -25,7 +25,6 @@ contract Controller is Governable {
     address public profitSharingReceiver;
     address public rewardForwarder;
     address public universalLiquidator;
-    address public dolomiteYieldFarmingRouter;
 
     uint256 public nextImplementationDelay;
 
@@ -194,11 +193,6 @@ contract Controller is Governable {
     function setUniversalLiquidator(address _universalLiquidator) public onlyGovernance {
         require(_universalLiquidator != address(0), "new universal liquidator should not be empty");
         universalLiquidator = _universalLiquidator;
-    }
-
-    function setDolomiteYieldFarmingRouter(address _dolomiteYieldFarmingRouter) public onlyGovernance {
-        require(_dolomiteYieldFarmingRouter != address(0), "new reward forwarder should not be empty");
-        dolomiteYieldFarmingRouter = _dolomiteYieldFarmingRouter;
     }
 
     function getPricePerFullShare(address _vault) public view returns (uint256) {
