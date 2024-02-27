@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-pragma solidity >=0.5.0;
+//SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 interface IUniswapV2Migrator {
     function migrate(address token, uint amountTokenMin, uint amountETHMin, address to, uint deadline) external;

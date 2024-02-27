@@ -1,4 +1,5 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 import "../interface/IStrategyFactory.sol";
 import "../../upgradability/StrategyProxy.sol";
@@ -9,7 +10,7 @@ interface IInitializableStrategy {
 }
 
 contract UpgradableStrategyFactory is OwnableWhitelist, IStrategyFactory {
-  function deploy(address actualStorage, address vault, address upgradableStrategyImplementation)  external onlyWhitelisted returns (address) {
+  function deploy(address actualStorage, address vault, address upgradableStrategyImplementation) override external onlyWhitelisted returns (address) {
     StrategyProxy proxy = new StrategyProxy(upgradableStrategyImplementation);
     IInitializableStrategy strategy = IInitializableStrategy(address(proxy));
     strategy.initializeStrategy(actualStorage, vault);

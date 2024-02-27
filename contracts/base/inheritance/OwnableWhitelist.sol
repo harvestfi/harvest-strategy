@@ -1,6 +1,7 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
-import "@openzeppelin/contracts/ownership/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract OwnableWhitelist is Ownable {
   mapping (address => bool) public whitelist;

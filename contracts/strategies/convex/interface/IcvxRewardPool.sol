@@ -1,4 +1,5 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 interface IcvxRewardPool {
     function balanceOf(address account) external view returns(uint256 amount);

@@ -1,4 +1,5 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 import "./base/ConvexStrategyUL_V2.sol";
 
@@ -14,7 +15,6 @@ contract ConvexStrategyMainnet_OETH is ConvexStrategyUL_V2 {
     address rewardPool = address(0x24b65DC1cf053A8D96872c323d29e86ec43eB33A); // Info -> Rewards contract address
     address crv = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
     address cvx = address(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
-    bytes32 sushiDex = bytes32(0xcb2d20206d906069351c89a2cb7cdbd96c71998717cd5a82e724d955b654f67a);
     ConvexStrategyUL_V2.initializeBaseStrategy(
       _storage,
       underlying,
@@ -25,13 +25,8 @@ contract ConvexStrategyMainnet_OETH is ConvexStrategyUL_V2 {
       0, //depositArrayPosition. Find deposit transaction -> input params
       underlying, // deposit contract: usually underlying. Find deposit transaction -> interacted contract
       2, //nTokens -> total number of deposit tokens
-      false, //metaPool -> if LP token address == pool address (at curve)
-      500 // hodlRatio 5%
+      false //metaPool -> if LP token address == pool address (at curve)
     );
     rewardTokens = [crv, cvx];
-    storedLiquidationPaths[crv][weth] = [crv, weth];
-    storedLiquidationDexes[crv][weth] = [sushiDex];
-    storedLiquidationPaths[cvx][weth] = [cvx, weth];
-    storedLiquidationDexes[cvx][weth] = [sushiDex];
   }
 }

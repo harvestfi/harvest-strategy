@@ -1,11 +1,11 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "../../../base/interface/IStrategy.sol";
-import "../../../base/upgradability/BaseUpgradeableStrategyUL.sol";
+import "../../../base/upgradability/BaseUpgradeableStrategy.sol";
+import "../../../base/interface/IUniversalLiquidator.sol";
 import "../interface/IBooster.sol";
 import "../interface/IBaseRewardPool.sol";
 import "../../../base/interface/curve/ICurveDeposit_2token.sol";
@@ -14,9 +14,9 @@ import "../../../base/interface/curve/ICurveDeposit_3token.sol";
 import "../../../base/interface/curve/ICurveDeposit_3token_meta.sol";
 import "../../../base/interface/curve/ICurveDeposit_4token.sol";
 import "../../../base/interface/curve/ICurveDeposit_4token_meta.sol";
-import "../../../base/interface/weth/Weth9.sol";
+import "../../../base/interface/weth/IWETH.sol";
 
-contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
+contract ConvexStrategyUL_V2 is BaseUpgradeableStrategy {
 
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
@@ -30,21 +30,16 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
   bytes32 internal constant _DEPOSIT_TOKEN_SLOT = 0x219270253dbc530471c88a9e7c321b36afda219583431e7b6c386d2d46e70c86;
   bytes32 internal constant _DEPOSIT_ARRAY_POSITION_SLOT = 0xb7c50ef998211fff3420379d0bf5b8dfb0cee909d1b7d9e517f311c104675b09;
   bytes32 internal constant _CURVE_DEPOSIT_SLOT = 0xb306bb7adebd5a22f5e4cdf1efa00bc5f62d4f5554ef9d62c1b16327cd3ab5f9;
-  bytes32 internal constant _HODL_RATIO_SLOT = 0xb487e573671f10704ed229d25cf38dda6d287a35872859d096c0395110a0adb1;
-  bytes32 internal constant _HODL_VAULT_SLOT = 0xc26d330f887c749cb38ae7c37873ff08ac4bba7aec9113c82d48a0cf6cc145f2;
   bytes32 internal constant _NTOKENS_SLOT = 0xbb60b35bae256d3c1378ff05e8d7bee588cd800739c720a107471dfa218f74c1;
   bytes32 internal constant _METAPOOL_SLOT = 0x567ad8b67c826974a167f1a361acbef5639a3e7e02e99edbc648a84b0923d5b7;
 
-  uint256 public constant hodlRatioBase = 10000;
   address[] public rewardTokens;
 
-  constructor() public BaseUpgradeableStrategyUL() {
+  constructor() public BaseUpgradeableStrategy() {
     assert(_POOLID_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.poolId")) - 1));
     assert(_DEPOSIT_TOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.depositToken")) - 1));
     assert(_DEPOSIT_ARRAY_POSITION_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.depositArrayPosition")) - 1));
     assert(_CURVE_DEPOSIT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.curveDeposit")) - 1));
-    assert(_HODL_RATIO_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.hodlRatio")) - 1));
-    assert(_HODL_VAULT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.hodlVault")) - 1));
     assert(_NTOKENS_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nTokens")) - 1));
     assert(_METAPOOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.metaPool")) - 1));
   }
@@ -59,35 +54,16 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
     uint256 _depositArrayPosition,
     address _curveDeposit,
     uint256 _nTokens,
-    bool _metaPool,
-    uint256 _hodlRatio
+    bool _metaPool
   ) public initializer {
 
-    // calculate profit sharing fee depending on hodlRatio
-    uint256 profitSharingNumerator = 150;
-    if (_hodlRatio >= 1500) {
-      profitSharingNumerator = 0;
-    } else if (_hodlRatio > 0){
-      // (profitSharingNumerator - hodlRatio/10) * hodlRatioBase / (hodlRatioBase - hodlRatio)
-      // e.g. with default values: (300 - 1000 / 10) * 10000 / (10000 - 1000)
-      // = (300 - 100) * 10000 / 9000 = 222
-      profitSharingNumerator = profitSharingNumerator.sub(_hodlRatio.div(10)) // subtract hodl ratio from profit sharing numerator
-                                    .mul(hodlRatioBase) // multiply with hodlRatioBase
-                                    .div(hodlRatioBase.sub(_hodlRatio)); // divide by hodlRatioBase minus hodlRatio
-    }
-
-    BaseUpgradeableStrategyUL.initialize(
+    BaseUpgradeableStrategy.initialize(
       _storage,
       _underlying,
       _vault,
       _rewardPool,
       weth,
-      profitSharingNumerator,  // profit sharing numerator
-      1000, // profit sharing denominator
-      true, // sell
-      0, // sell floor
-      12 hours, // implementation change delay
-      address(0x7882172921E99d590E097cD600554339fBDBc480) //UL Registry
+      multiSigAddr
     );
 
     address _lpt;
@@ -101,40 +77,9 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
     _setCurveDeposit(_curveDeposit);
     _setNTokens(_nTokens);
     _setMetaPool(_metaPool);
-    setUint256(_HODL_RATIO_SLOT, _hodlRatio);
-    setAddress(_HODL_VAULT_SLOT, multiSigAddr);
-    rewardTokens = new address[](0);
   }
 
-  function setHodlRatio(uint256 _value) public onlyGovernance {
-    uint256 profitSharingNumerator = 300;
-    if (_value >= 3000) {
-      profitSharingNumerator = 0;
-    } else if (_value > 0){
-      // (profitSharingNumerator - hodlRatio/10) * hodlRatioBase / (hodlRatioBase - hodlRatio)
-      // e.g. with default values: (300 - 1000 / 10) * 10000 / (10000 - 1000)
-      // = (300 - 100) * 10000 / 9000 = 222
-      profitSharingNumerator = profitSharingNumerator.sub(_value.div(10)) // subtract hodl ratio from profit sharing numerator
-                                    .mul(hodlRatioBase) // multiply with hodlRatioBase
-                                    .div(hodlRatioBase.sub(_value)); // divide by hodlRatioBase minus hodlRatio
-    }
-    _setProfitSharingNumerator(profitSharingNumerator);
-    setUint256(_HODL_RATIO_SLOT, _value);
-  }
-
-  function hodlRatio() public view returns (uint256) {
-    return getUint256(_HODL_RATIO_SLOT);
-  }
-
-  function setHodlVault(address _address) public onlyGovernance {
-    setAddress(_HODL_VAULT_SLOT, _address);
-  }
-
-  function hodlVault() public view returns (address) {
-    return getAddress(_HODL_VAULT_SLOT);
-  }
-
-  function depositArbCheck() public view returns(bool) {
+  function depositArbCheck() public pure returns(bool) {
     return true;
   }
 
@@ -190,13 +135,8 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
     _setPausedInvesting(false);
   }
 
-  function addRewardToken(address _token, address[] memory _path, bytes32[] memory _dexes) public onlyGovernance {
-    require(_path[_path.length-1] == weth, "Path should end with WETH");
-    require(_path[0] == _token, "Path should start with rewardToken");
-    require(_dexes.length == _path.length-1, "Inconsistent length for path/dexes");
+  function addRewardToken(address _token) public onlyGovernance {
     rewardTokens.push(_token);
-    storedLiquidationPaths[_token][weth] = _path;
-    storedLiquidationDexes[_token][weth] = _dexes;
   }
 
   // We assume that all the tradings can be done on Sushiswap
@@ -215,41 +155,17 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
       address token = rewardTokens[i];
       uint256 rewardBalance = IERC20(token).balanceOf(address(this));
 
-      // if the token is the rewardToken then there won't be a path defined because liquidation is not necessary,
-      // but we still have to make sure that the toHodl part is executed.
-      if (rewardBalance == 0 || (storedLiquidationDexes[token][_rewardToken].length < 1) && token != rewardToken()) {
-        continue;
-      }
-
-      uint256 toHodl = rewardBalance.mul(hodlRatio()).div(hodlRatioBase);
-      if (toHodl > 0) {
-        IERC20(token).safeTransfer(hodlVault(), toHodl);
-        rewardBalance = rewardBalance.sub(toHodl);
-        if (rewardBalance == 0) {
-          continue;
-        }
-      }
-
-      if(token == _rewardToken) {
-        // one of the reward tokens is the same as the token that we liquidate to ->
-        // no liquidation necessary
+      if (rewardBalance == 0 || token == _rewardToken) {
         continue;
       }
 
       IERC20(token).safeApprove(_universalLiquidator, 0);
       IERC20(token).safeApprove(_universalLiquidator, rewardBalance);
-      // we can accept 1 as the minimum because this will be called only by a trusted worker
-      ILiquidator(_universalLiquidator).swapTokenOnMultipleDEXes(
-        rewardBalance,
-        1,
-        address(this), // target
-        storedLiquidationDexes[token][_rewardToken],
-        storedLiquidationPaths[token][_rewardToken]
-      );
+      IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, rewardBalance, 1, address(this));
     }
 
     uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
-    notifyProfitInRewardToken(rewardBalance);
+    _notifyProfitInRewardToken(_rewardToken, rewardBalance);
     uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
     if (remainingRewardBalance == 0) {
@@ -259,15 +175,7 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
     if(_depositToken != _rewardToken) {
       IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
       IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
-
-      // we can accept 1 as minimum because this is called only by a trusted role
-      ILiquidator(_universalLiquidator).swapTokenOnMultipleDEXes(
-        remainingRewardBalance,
-        1,
-        address(this), // target
-        storedLiquidationDexes[_rewardToken][_depositToken],
-        storedLiquidationPaths[_rewardToken][_depositToken]
-      );
+      IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _depositToken, remainingRewardBalance, 1, address(this));
     }
 
     uint256 tokenBalance = IERC20(_depositToken).balanceOf(address(this));
@@ -292,8 +200,8 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
       uint256[2] memory depositArray;
       depositArray[depositArrayPosition()] = tokenBalance;
       if (_depositToken == weth){
-        WETH9(weth).withdraw(tokenBalance);
-        ICurveDeposit_2token(_curveDeposit).add_liquidity.value(tokenBalance)(depositArray, minimum);
+        IWETH(weth).withdraw(tokenBalance);
+        ICurveDeposit_2token(_curveDeposit).add_liquidity{value:tokenBalance}(depositArray, minimum);
       } else {
         ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
       }
@@ -459,9 +367,7 @@ contract ConvexStrategyUL_V2 is IStrategy, BaseUpgradeableStrategyUL {
 
   function finalizeUpgrade() external onlyGovernance {
     _finalizeUpgrade();
-    setHodlVault(multiSigAddr);
-    setHodlRatio(1000); // 10%
   }
 
-  function () external payable {} // this is needed for the WETH unwrapping
+  receive() external payable {}
 }

@@ -1,15 +1,16 @@
-//SPDX-License-Identifier: Unlicense
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../base/interface/IVault.sol";
-import "../../base/upgradability/BaseUpgradeableStrategyUL.sol";
+import "../../base/interface/IUniversalLiquidator.sol";
+import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/compound/IComet.sol";
 import "../../base/interface/compound/ICometRewards.sol";
 
-contract CompoundStrategy is BaseUpgradeableStrategyUL {
+contract CompoundStrategy is BaseUpgradeableStrategy {
 
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
@@ -18,15 +19,9 @@ contract CompoundStrategy is BaseUpgradeableStrategyUL {
 
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
   bytes32 internal constant _MARKET_SLOT = 0x7e894854bb2aa938fcac0eb9954ddb51bd061fc228fb4e5b8e859d96c06bfaa0;
-  bytes32 internal constant _HODL_RATIO_SLOT = 0xb487e573671f10704ed229d25cf38dda6d287a35872859d096c0395110a0adb1;
-  bytes32 internal constant _HODL_VAULT_SLOT = 0xc26d330f887c749cb38ae7c37873ff08ac4bba7aec9113c82d48a0cf6cc145f2;
 
-  uint256 public constant hodlRatioBase = 10000;
-
-  constructor() public BaseUpgradeableStrategyUL() {
+  constructor() public BaseUpgradeableStrategy() {
     assert(_MARKET_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.market")) - 1));
-    assert(_HODL_RATIO_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.hodlRatio")) - 1));
-    assert(_HODL_VAULT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.hodlVault")) - 1));
   }
 
   function initializeBaseStrategy(
@@ -35,71 +30,22 @@ contract CompoundStrategy is BaseUpgradeableStrategyUL {
     address _vault,
     address _market,
     address _rewardPool,
-    address _rewardToken,
-    uint256 _hodlRatio
+    address _rewardToken
   ) public initializer {
 
-    // calculate profit sharing fee depending on hodlRatio
-    uint256 profitSharingNumerator = 150;
-    if (_hodlRatio >= 1500) {
-      profitSharingNumerator = 0;
-    } else if (_hodlRatio > 0){
-      // (profitSharingNumerator - hodlRatio/10) * hodlRatioBase / (hodlRatioBase - hodlRatio)
-      // e.g. with default values: (300 - 1000 / 10) * 10000 / (10000 - 1000)
-      // = (300 - 100) * 10000 / 9000 = 222
-      profitSharingNumerator = profitSharingNumerator.sub(_hodlRatio.div(10)) // subtract hodl ratio from profit sharing numerator
-                                    .mul(hodlRatioBase) // multiply with hodlRatioBase
-                                    .div(hodlRatioBase.sub(_hodlRatio)); // divide by hodlRatioBase minus hodlRatio
-    }
-
-    BaseUpgradeableStrategyUL.initialize(
+    BaseUpgradeableStrategy.initialize(
       _storage,
       _underlying,
       _vault,
       _rewardPool,
       _rewardToken,
-      profitSharingNumerator,  // profit sharing numerator
-      1000, // profit sharing denominator
-      true, // sell
-      0, // sell floor
-      12 hours, // implementation change delay
-      address(0x7882172921E99d590E097cD600554339fBDBc480) //UL Registry
+      harvestMSIG
     );
 
     address _lpt = IComet(_market).baseToken();
     require(_lpt == _underlying, "Underlying mismatch");
 
     _setMarket(_market);
-    setUint256(_HODL_RATIO_SLOT, _hodlRatio);
-    setAddress(_HODL_VAULT_SLOT, harvestMSIG);
-  }
-
-  function setHodlRatio(uint256 _value) public onlyGovernance {
-    uint256 profitSharingNumerator = 150;
-    if (_value >= 1500) {
-      profitSharingNumerator = 0;
-    } else if (_value > 0){
-      // (profitSharingNumerator - hodlRatio/10) * hodlRatioBase / (hodlRatioBase - hodlRatio)
-      // e.g. with default values: (300 - 1000 / 10) * 10000 / (10000 - 1000)
-      // = (300 - 100) * 10000 / 9000 = 222
-      profitSharingNumerator = profitSharingNumerator.sub(_value.div(10)) // subtract hodl ratio from profit sharing numerator
-                                    .mul(hodlRatioBase) // multiply with hodlRatioBase
-                                    .div(hodlRatioBase.sub(_value)); // divide by hodlRatioBase minus hodlRatio
-    }
-    _setProfitSharingNumerator(profitSharingNumerator);
-    setUint256(_HODL_RATIO_SLOT, _value);
-  }
-
-  function hodlRatio() public view returns (uint256) {
-    return getUint256(_HODL_RATIO_SLOT);
-  }
-
-  function setHodlVault(address _address) public onlyGovernance {
-    setAddress(_HODL_VAULT_SLOT, _address);
-  }
-
-  function hodlVault() public view returns (address) {
-    return getAddress(_HODL_VAULT_SLOT);
   }
 
   function depositArbCheck() public pure returns(bool) {
@@ -172,15 +118,7 @@ contract CompoundStrategy is BaseUpgradeableStrategyUL {
     address _rewardToken = rewardToken();
     uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
-    uint256 toHodl = rewardBalance.mul(hodlRatio()).div(hodlRatioBase);
-    if (toHodl > 0) {
-      IERC20(_rewardToken).safeTransfer(hodlVault(), toHodl);
-      rewardBalance = rewardBalance.sub(toHodl);
-      if (rewardBalance == 0) {
-        return;
-      }
-    }
-    notifyProfitInRewardToken(rewardBalance);
+    _notifyProfitInRewardToken(_rewardToken, rewardBalance);
     uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
     if (remainingRewardBalance == 0) {
@@ -189,29 +127,11 @@ contract CompoundStrategy is BaseUpgradeableStrategyUL {
 
     address _underlying = underlying();
     if (_underlying != _rewardToken) {
-      _swapToToken(_rewardToken, _underlying, remainingRewardBalance);
-    }
-  }
-
-  function _swapToToken(address tokenIn, address tokenOut, uint256 amountIn) internal returns (uint256) {
-    uint256 amountOut;
-    if (storedLiquidationPaths[tokenIn][tokenOut].length > 0) {
       address _universalLiquidator = universalLiquidator();
-      IERC20(tokenIn).safeApprove(_universalLiquidator, 0);
-      IERC20(tokenIn).safeApprove(_universalLiquidator, amountIn);
-      ILiquidator(_universalLiquidator).swapTokenOnMultipleDEXes(
-        amountIn,
-        1,
-        address(this), // target
-        storedLiquidationDexes[tokenIn][tokenOut],
-        storedLiquidationPaths[tokenIn][tokenOut]
-      );
-      amountOut = IERC20(tokenOut).balanceOf(address(this));
-    } else {
-      // otherwise we assme token0 is weth itself
-      amountOut = amountIn;
+      IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
+      IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
+      IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _underlying, remainingRewardBalance, 1, address(this));
     }
-    return amountOut;
   }
 
   /*

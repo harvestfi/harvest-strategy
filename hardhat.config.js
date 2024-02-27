@@ -1,8 +1,8 @@
-require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-etherscan");
 require("@nomiclabs/hardhat-truffle5");
+require("@nomiclabs/hardhat-web3");
 require("@nomiclabs/hardhat-ethers");
-require("hardhat-gas-reporter");
+require('hardhat-contract-sizer');
 
 const keys = require('./dev-keys.json');
 
@@ -18,7 +18,6 @@ module.exports = {
       },
       allowUnlimitedContractSize: true,
       forking: {
-        //url: "https://mainnet.infura.io/v3/" + keys.infuraKey,
         url: "https://eth-mainnet.alchemyapi.io/v2/" + keys.alchemyKeyMainnet,
         // blockNumber: 13984950, // <-- edit here
       },
@@ -32,7 +31,7 @@ module.exports = {
   },
   solidity: {
     compilers: [{
-        version: "0.5.16",
+        version: "0.6.12",
         settings: {
           optimizer: {
             enabled: true,
@@ -45,11 +44,13 @@ module.exports = {
   mocha: {
     timeout: 2000000,
   },
-  gasReporter: {
-    enabled: (process.env.REPORT_GAS) ? true : false,
-    currency: 'USD',
-  },
   etherscan: {
     apiKey: keys.etherscanAPI,
+  },
+  contractSizer: {
+    alphaSort: false,
+    disambiguatePaths: false,
+    runOnCompile: false,
+    strict: false,
   },
 };

@@ -1,22 +1,37 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 interface IStrategy {
-    
-    function unsalvagableTokens(address tokens) external view returns (bool);
-    
+
+    /// @notice declared as public so child contract can call it
+    function isUnsalvageableToken(address token) external view returns (bool);
+
+    function salvageToken(address recipient, address token, uint amount) external;
+
     function governance() external view returns (address);
+
     function controller() external view returns (address);
+
     function underlying() external view returns (address);
+
     function vault() external view returns (address);
 
     function withdrawAllToVault() external;
-    function withdrawToVault(uint256 amount) external;
 
-    function investedUnderlyingBalance() external view returns (uint256); // itsNotMuch()
+    function withdrawToVault(uint256 _amount) external;
 
-    // should only be called by controller
-    function salvage(address recipient, address token, uint256 amount) external;
+    function investedUnderlyingBalance() external view returns (uint256);
 
     function doHardWork() external;
-    function depositArbCheck() external view returns(bool);
+
+    function depositArbCheck() external view returns (bool);
+
+    function strategist() external view returns (address);
+
+    /**
+     * @return  The value of any accumulated rewards that are under control by the strategy. Each index corresponds with
+     *          the tokens in `rewardTokens`. This function is not a `view`, because some protocols, like Curve, need
+     *          writeable functions to get the # of claimable reward tokens
+     */
+    function getRewardPoolValues() external returns (uint256[] memory);
 }

@@ -1,10 +1,11 @@
-pragma solidity 0.5.16;
+//SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
-import "@openzeppelin/upgrades/contracts/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 import "./BaseUpgradeableStrategyStorage.sol";
 import "../inheritance/ControllableInit.sol";
 import "../interface/IController.sol";
-import "../interface/IFeeRewardForwarderV6.sol";
+import "../interface/IRewardForwarder.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -40,11 +41,7 @@ contract BaseUpgradeableStrategy is Initializable, ControllableInit, BaseUpgrade
     address _vault,
     address _rewardPool,
     address _rewardToken,
-    uint256 _profitSharingNumerator,
-    uint256 _profitSharingDenominator,
-    bool _sell,
-    uint256 _sellFloor,
-    uint256 _implementationChangeDelay
+    address _strategist
   ) public initializer {
     ControllableInit.initialize(
       _storage
@@ -53,12 +50,9 @@ contract BaseUpgradeableStrategy is Initializable, ControllableInit, BaseUpgrade
     _setVault(_vault);
     _setRewardPool(_rewardPool);
     _setRewardToken(_rewardToken);
-    _setProfitSharingNumerator(_profitSharingNumerator);
-    _setProfitSharingDenominator(_profitSharingDenominator);
-
-    _setSell(_sell);
-    _setSellFloor(_sellFloor);
-    _setNextImplementationDelay(_implementationChangeDelay);
+    _setStrategist(_strategist);
+    _setSell(true);
+    _setSellFloor(0);
     _setPausedInvesting(false);
   }
 
@@ -84,43 +78,63 @@ contract BaseUpgradeableStrategy is Initializable, ControllableInit, BaseUpgrade
     );
   }
 
-  // reward notification
+  // ========================= Internal & Private Functions =========================
 
-  function notifyProfitInRewardToken(uint256 _rewardBalance) internal {
-    if( _rewardBalance > 0 ){
-      uint256 feeAmount = _rewardBalance.mul(profitSharingNumerator()).div(profitSharingDenominator());
-      emit ProfitLogInReward(_rewardBalance, feeAmount, block.timestamp);
-      IERC20(rewardToken()).safeApprove(controller(), 0);
-      IERC20(rewardToken()).safeApprove(controller(), feeAmount);
+  // ==================== Functionality ====================
 
-      IController(controller()).notifyFee(
-        rewardToken(),
-        feeAmount
-      );
-    } else {
-      emit ProfitLogInReward(0, 0, block.timestamp);
-    }
-  }
+  /**
+    * @dev Same as `_notifyProfitAndBuybackInRewardToken` but does not perform a compounding buyback. Just takes fees
+    *      instead.
+    */
+  function _notifyProfitInRewardToken(
+      address _rewardToken,
+      uint256 _rewardBalance
+  ) internal {
+      if (_rewardBalance > 100) {
+          uint _feeDenominator = feeDenominator();
+          uint256 strategistFee = _rewardBalance.mul(strategistFeeNumerator()).div(_feeDenominator);
+          uint256 platformFee = _rewardBalance.mul(platformFeeNumerator()).div(_feeDenominator);
+          uint256 profitSharingFee = _rewardBalance.mul(profitSharingNumerator()).div(_feeDenominator);
 
-  function notifyProfitAndBuybackInRewardToken(uint256 _rewardBalance, address pool, uint256 _buybackRatio) internal {
-    if( _rewardBalance > 0 ){
-      uint256 feeAmount = _rewardBalance.mul(profitSharingNumerator()).div(profitSharingDenominator());
-      uint256 buybackAmount = _rewardBalance.sub(feeAmount).mul(_buybackRatio).div(10000);
+          address strategyFeeRecipient = strategist();
+          address platformFeeRecipient = IController(controller()).governance();
 
-      address forwarder = IController(controller()).feeRewardForwarder();
-      emit ProfitAndBuybackLog(_rewardBalance, feeAmount, block.timestamp);
+          emit ProfitLogInReward(
+              _rewardToken,
+              _rewardBalance,
+              profitSharingFee,
+              block.timestamp
+          );
+          emit PlatformFeeLogInReward(
+              platformFeeRecipient,
+              _rewardToken,
+              _rewardBalance,
+              platformFee,
+              block.timestamp
+          );
+          emit StrategistFeeLogInReward(
+              strategyFeeRecipient,
+              _rewardToken,
+              _rewardBalance,
+              strategistFee,
+              block.timestamp
+          );
 
-      IERC20(rewardToken()).safeApprove(forwarder, 0);
-      IERC20(rewardToken()).safeApprove(forwarder, _rewardBalance);
+          address rewardForwarder = IController(controller()).rewardForwarder();
+          IERC20(_rewardToken).safeApprove(rewardForwarder, 0);
+          IERC20(_rewardToken).safeApprove(rewardForwarder, _rewardBalance);
 
-      IFeeRewardForwarderV6(forwarder).notifyFeeAndBuybackAmounts(
-        rewardToken(),
-        feeAmount,
-        pool,
-        buybackAmount
-      );
-    } else {
-      emit ProfitAndBuybackLog(0, 0, block.timestamp);
-    }
+          // Distribute/send the fees
+          IRewardForwarder(rewardForwarder).notifyFee(
+              _rewardToken,
+              profitSharingFee,
+              strategistFee,
+              platformFee
+          );
+      } else {
+          emit ProfitLogInReward(_rewardToken, 0, 0, block.timestamp);
+          emit PlatformFeeLogInReward(IController(controller()).governance(), _rewardToken, 0, 0, block.timestamp);
+          emit StrategistFeeLogInReward(strategist(), _rewardToken, 0, 0, block.timestamp);
+      }
   }
 }

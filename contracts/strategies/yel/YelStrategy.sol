@@ -1,30 +1,29 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 import "@openzeppelin/contracts/math/Math.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../base/interface/uniswap/IUniswapV2Router02.sol";
-import "../../base/interface/IStrategy.sol";
 import "../../base/interface/IVault.sol";
+import "../../base/interface/IUniversalLiquidator.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
-import "../../base/sushi-base/interfaces/IMasterChef.sol";
+import "../../base/interface/sushi/IMasterChef.sol";
 import "../../base/interface/uniswap/IUniswapV2Pair.sol";
 
-contract YelStrategy is IStrategy, BaseUpgradeableStrategy {
+contract YelStrategy is BaseUpgradeableStrategy {
 
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
   address public constant uniswapRouterV2 = address(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
   address public constant sushiswapRouterV2 = address(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+  address public constant multiSigAddr = address(0xF49440C1F012d041802b25A73e5B0B9166a75c02);
 
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
   bytes32 internal constant _POOLID_SLOT = 0x3fd729bfa2e28b7806b03a6e014729f59477b530f995be4d51defc9dad94810b;
   bytes32 internal constant _USE_UNI_SLOT = 0x1132c1de5e5b6f1c4c7726265ddcf1f4ae2a9ecf258a0002de174248ecbf2c7a;
   bytes32 internal constant _IS_LP_ASSET_SLOT = 0xc2f3dabf55b1bdda20d5cf5fcba9ba765dfc7c9dbaf28674ce46d43d60d58768;
-
-  mapping (address => address[]) public swapRoutes;
 
   constructor() public BaseUpgradeableStrategy() {
     assert(_POOLID_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.poolId")) - 1));
@@ -47,33 +46,18 @@ contract YelStrategy is IStrategy, BaseUpgradeableStrategy {
       _vault,
       _rewardPool,
       _rewardToken,
-      150, // profit sharing numerator
-      1000, // profit sharing denominator
-      true, // sell
-      1e18, // sell floor
-      12 hours // implementation change delay
+      multiSigAddr
     );
 
     address _lpt;
     (_lpt,,,) = IMasterChef(rewardPool()).poolInfo(_poolID);
     require(_lpt == underlying(), "Pool Info does not match underlying");
     _setPoolId(_poolID);
-    if (_isLpAsset) {
-      address uniLPComponentToken0 = IUniswapV2Pair(underlying()).token0();
-      address uniLPComponentToken1 = IUniswapV2Pair(underlying()).token1();
-
-      // these would be required to be initialized separately by governance
-      swapRoutes[uniLPComponentToken0] = new address[](0);
-      swapRoutes[uniLPComponentToken1] = new address[](0);
-    } else {
-      swapRoutes[underlying()] = new address[](0);
-    }
-
     setBoolean(_USE_UNI_SLOT, _useUni);
     setBoolean(_IS_LP_ASSET_SLOT, _isLpAsset);
   }
 
-  function depositArbCheck() public view returns(bool) {
+  function depositArbCheck() public pure returns(bool) {
     return true;
   }
 
@@ -124,15 +108,13 @@ contract YelStrategy is IStrategy, BaseUpgradeableStrategy {
     _setPausedInvesting(false);
   }
 
-  function setLiquidationPath(address _token, address [] memory _route) public onlyGovernance {
-    swapRoutes[_token] = _route;
-  }
-
   // We assume that all the tradings can be done on Uniswap
   function _liquidateReward() internal {
-    uint256 rewardBalanceBefore = IERC20(rewardToken()).balanceOf(address(this));
-    IMasterChef(rewardPool()).withdraw(poolId(), 0);
-    uint256 rewardBalanceAfter = IERC20(rewardToken()).balanceOf(address(this));
+    address _rewardToken = rewardToken();
+    address _universalLiquidator = universalLiquidator();
+    uint256 rewardBalanceBefore = IERC20(_rewardToken).balanceOf(address(this));
+    IMasterChef(_rewardToken).withdraw(poolId(), 0);
+    uint256 rewardBalanceAfter = IERC20(_rewardToken).balanceOf(address(this));
     uint256 claimed = rewardBalanceAfter.sub(rewardBalanceBefore);
 
     if (!sell() || claimed < sellFloor()) {
@@ -141,95 +123,75 @@ contract YelStrategy is IStrategy, BaseUpgradeableStrategy {
       return;
     }
 
-    notifyProfitInRewardToken(claimed);
-    uint256 remainingRewardBalance = IERC20(rewardToken()).balanceOf(address(this));
+    _notifyProfitInRewardToken(_rewardToken, claimed);
+    uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
     if (remainingRewardBalance == 0) {
       return;
     }
 
-    address routerV2;
-    if(useUni()) {
-      routerV2 = uniswapRouterV2;
-    } else {
-      routerV2 = sushiswapRouterV2;
-    }
+    address _underlying = underlying();
+    if(_underlying != _rewardToken) {
+      if (isLpAsset()) {
+        address uniLPComponentToken0 = IUniswapV2Pair(_underlying).token0();
+        address uniLPComponentToken1 = IUniswapV2Pair(_underlying).token1();
 
-    // allow Uniswap to sell our reward
-    IERC20(rewardToken()).safeApprove(routerV2, 0);
-    IERC20(rewardToken()).safeApprove(routerV2, remainingRewardBalance);
+        uint256 toToken0 = remainingRewardBalance.div(2);
+        uint256 toToken1 = remainingRewardBalance.sub(toToken0);
 
-    // we can accept 1 as minimum because this is called only by a trusted role
-    uint256 amountOutMin = 1;
+        uint256 token0Amount;
+        uint256 token1Amount;
 
-    if (isLpAsset()) {
-      address uniLPComponentToken0 = IUniswapV2Pair(underlying()).token0();
-      address uniLPComponentToken1 = IUniswapV2Pair(underlying()).token1();
+        if (_rewardToken != uniLPComponentToken0) {
+          IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
+          IERC20(_rewardToken).safeApprove(_universalLiquidator, toToken0);
+          IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, uniLPComponentToken0, toToken0, 1, address(this));
+          token0Amount = IERC20(uniLPComponentToken0).balanceOf(address(this));
+        } else {
+          // otherwise we assme token0 is the reward token itself
+          token0Amount = toToken0;
+        }
 
-      uint256 toToken0 = remainingRewardBalance.div(2);
-      uint256 toToken1 = remainingRewardBalance.sub(toToken0);
+        if (_rewardToken != uniLPComponentToken1) {
+          IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
+          IERC20(_rewardToken).safeApprove(_universalLiquidator, toToken1);
+          IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, uniLPComponentToken1, toToken1, 1, address(this));
+          token1Amount = IERC20(uniLPComponentToken1).balanceOf(address(this));
+        } else {
+          // otherwise we assme token0 is the reward token itself
+          token1Amount = toToken1;
+        }
+ 
+        address routerV2;
+        if(useUni()) {
+          routerV2 = uniswapRouterV2;
+        } else {
+          routerV2 = sushiswapRouterV2;
+        }
 
-      uint256 token0Amount;
+        // provide token1 and token2 to SUSHI
+        IERC20(uniLPComponentToken0).safeApprove(routerV2, 0);
+        IERC20(uniLPComponentToken0).safeApprove(routerV2, token0Amount);
 
-      if (swapRoutes[uniLPComponentToken0].length > 1) {
-        // if we need to liquidate the token0
-        IUniswapV2Router02(routerV2).swapExactTokensForTokens(
-          toToken0,
-          amountOutMin,
-          swapRoutes[uniLPComponentToken0],
+        IERC20(uniLPComponentToken1).safeApprove(routerV2, 0);
+        IERC20(uniLPComponentToken1).safeApprove(routerV2, token1Amount);
+
+        // we provide liquidity to sushi
+        uint256 liquidity;
+        (,,liquidity) = IUniswapV2Router02(routerV2).addLiquidity(
+          uniLPComponentToken0,
+          uniLPComponentToken1,
+          token0Amount,
+          token1Amount,
+          1,  // we are willing to take whatever the pair gives us
+          1,  // we are willing to take whatever the pair gives us
           address(this),
           block.timestamp
         );
-        token0Amount = IERC20(uniLPComponentToken0).balanceOf(address(this));
       } else {
-        // otherwise we assme token0 is the reward token itself
-        token0Amount = toToken0;
-      }
-
-      uint256 token1Amount;
-
-      if (swapRoutes[uniLPComponentToken1].length > 1) {
-        // sell reward token to token1
-        IUniswapV2Router02(routerV2).swapExactTokensForTokens(
-          toToken1,
-          amountOutMin,
-          swapRoutes[uniLPComponentToken1],
-          address(this),
-          block.timestamp
-        );
-        token1Amount = IERC20(uniLPComponentToken1).balanceOf(address(this));
-      } else {
-        token1Amount = toToken1;
-      }
-
-      // provide token1 and token2 to SUSHI
-      IERC20(uniLPComponentToken0).safeApprove(routerV2, 0);
-      IERC20(uniLPComponentToken0).safeApprove(routerV2, token0Amount);
-
-      IERC20(uniLPComponentToken1).safeApprove(routerV2, 0);
-      IERC20(uniLPComponentToken1).safeApprove(routerV2, token1Amount);
-
-      // we provide liquidity to sushi
-      uint256 liquidity;
-      (,,liquidity) = IUniswapV2Router02(routerV2).addLiquidity(
-        uniLPComponentToken0,
-        uniLPComponentToken1,
-        token0Amount,
-        token1Amount,
-        1,  // we are willing to take whatever the pair gives us
-        1,  // we are willing to take whatever the pair gives us
-        address(this),
-        block.timestamp
-      );
-    } else {
-      if (swapRoutes[underlying()].length > 1) {
-        IUniswapV2Router02(routerV2).swapExactTokensForTokens(
-          remainingRewardBalance,
-          amountOutMin,
-          swapRoutes[underlying()],
-          address(this),
-          block.timestamp
-        );
+        IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
+        IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
+        IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _underlying, remainingRewardBalance, 1, address(this));
       }
     }
   }

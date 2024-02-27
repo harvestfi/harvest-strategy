@@ -1,4 +1,5 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 import "../../VaultProxy.sol";
 import "../../interface/IVault.sol";
@@ -9,7 +10,7 @@ contract RegularVaultFactory is OwnableWhitelist, IVaultFactory {
   address public vaultImplementation = 0x9B3bE0cc5dD26fd0254088d03D8206792715588B;
   address public lastDeployedAddress = address(0);
 
-  function deploy(address _storage, address underlying) external onlyWhitelisted returns (address) {
+  function deploy(address _storage, address underlying) override external onlyWhitelisted returns (address) {
     lastDeployedAddress = address(new VaultProxy(vaultImplementation));
     IVault(lastDeployedAddress).initializeVault(
       _storage,
@@ -26,7 +27,7 @@ contract RegularVaultFactory is OwnableWhitelist, IVaultFactory {
     vaultImplementation = newImplementation;
   }
 
-  function info(address vault) external view returns(address Underlying, address NewVault) {
+  function info(address vault) override external view returns(address Underlying, address NewVault) {
     Underlying = IVault(vault).underlying();
     NewVault = vault;
   }

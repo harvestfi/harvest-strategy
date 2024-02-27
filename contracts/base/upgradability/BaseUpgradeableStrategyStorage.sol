@@ -1,13 +1,48 @@
-pragma solidity 0.5.16;
+//SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
-import "@openzeppelin/upgrades/contracts/Initializable.sol";
+import "../interface/IController.sol";
+import "../inheritance/ControllableInit.sol";
 
-contract BaseUpgradeableStrategyStorage {
+contract BaseUpgradeableStrategyStorage is ControllableInit {
+
+  event ProfitsNotCollected(
+      address indexed rewardToken,
+      bool sell,
+      bool floor
+  );
+  event ProfitLogInReward(
+      address indexed rewardToken,
+      uint256 profitAmount,
+      uint256 feeAmount,
+      uint256 timestamp
+  );
+  event ProfitAndBuybackLog(
+      address indexed rewardToken,
+      uint256 profitAmount,
+      uint256 feeAmount,
+      uint256 timestamp
+  );
+  event PlatformFeeLogInReward(
+      address indexed treasury,
+      address indexed rewardToken,
+      uint256 profitAmount,
+      uint256 feeAmount,
+      uint256 timestamp
+  );
+  event StrategistFeeLogInReward(
+      address indexed strategist,
+      address indexed rewardToken,
+      uint256 profitAmount,
+      uint256 feeAmount,
+      uint256 timestamp
+  );
 
   bytes32 internal constant _UNDERLYING_SLOT = 0xa1709211eeccf8f4ad5b6700d52a1a9525b5f5ae1e9e5f9e5a0c2fc23c86e530;
   bytes32 internal constant _VAULT_SLOT = 0xefd7c7d9ef1040fc87e7ad11fe15f86e1d11e1df03c6d7c87f7e1f4041f08d41;
 
   bytes32 internal constant _REWARD_TOKEN_SLOT = 0xdae0aafd977983cb1e78d8f638900ff361dc3c48c43118ca1dd77d1af3f47bbf;
+  bytes32 internal constant _REWARD_TOKENS_SLOT = 0x45418d9b5c2787ae64acbffccad43f2b487c1a16e24385aa9d2b059f9d1d163c;
   bytes32 internal constant _REWARD_POOL_SLOT = 0x3d9bb16e77837e25cada0cf894835418b38e8e18fbec6cfd192eb344bebfa6b8;
   bytes32 internal constant _SELL_FLOOR_SLOT = 0xc403216a7704d160f6a3b5c3b149a1226a6080f0a5dd27b27d9ba9c022fa0afc;
   bytes32 internal constant _SELL_SLOT = 0x656de32df98753b07482576beb0d00a6b949ebf84c066c765f54f26725221bb6;
@@ -20,13 +55,13 @@ contract BaseUpgradeableStrategyStorage {
   bytes32 internal constant _NEXT_IMPLEMENTATION_TIMESTAMP_SLOT = 0x414c5263b05428f1be1bfa98e25407cc78dd031d0d3cd2a2e3d63b488804f22e;
   bytes32 internal constant _NEXT_IMPLEMENTATION_DELAY_SLOT = 0x82b330ca72bcd6db11a26f10ce47ebcfe574a9c646bccbc6f1cd4478eae16b31;
 
-  bytes32 internal constant _REWARD_CLAIMABLE_SLOT = 0xbc7c0d42a71b75c3129b337a259c346200f901408f273707402da4b51db3b8e7;
-  bytes32 internal constant _MULTISIG_SLOT = 0x3e9de78b54c338efbc04e3a091b87dc7efb5d7024738302c548fc59fba1c34e6;
+  bytes32 internal constant _STRATEGIST_SLOT = 0x6a7b588c950d46e2de3db2f157e5e0e4f29054c8d60f17bf0c30352e223a458d;
 
   constructor() public {
     assert(_UNDERLYING_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.underlying")) - 1));
     assert(_VAULT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.vault")) - 1));
     assert(_REWARD_TOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.rewardToken")) - 1));
+    assert(_REWARD_TOKENS_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.rewardTokens")) - 1));
     assert(_REWARD_POOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.rewardPool")) - 1));
     assert(_SELL_FLOOR_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.sellFloor")) - 1));
     assert(_SELL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.sell")) - 1));
@@ -39,15 +74,14 @@ contract BaseUpgradeableStrategyStorage {
     assert(_NEXT_IMPLEMENTATION_TIMESTAMP_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nextImplementationTimestamp")) - 1));
     assert(_NEXT_IMPLEMENTATION_DELAY_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nextImplementationDelay")) - 1));
 
-    assert(_REWARD_CLAIMABLE_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.rewardClaimable")) - 1));
-    assert(_MULTISIG_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.multiSig")) - 1));
+    assert(_STRATEGIST_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.strategist")) - 1));
   }
 
   function _setUnderlying(address _address) internal {
     setAddress(_UNDERLYING_SLOT, _address);
   }
 
-  function underlying() public view returns (address) {
+  function underlying() public virtual view returns (address) {
     return getAddress(_UNDERLYING_SLOT);
   }
 
@@ -67,11 +101,40 @@ contract BaseUpgradeableStrategyStorage {
     return getAddress(_REWARD_TOKEN_SLOT);
   }
 
+  function _setRewardTokens(address[] memory _rewardTokens) internal {
+    setAddressArray(_REWARD_TOKENS_SLOT, _rewardTokens);
+  }
+
+  function isRewardToken(address _token) public view returns (bool) {
+    return _isAddressInList(_token, rewardTokens());
+  }
+
+  function rewardTokens() public view returns (address[] memory) {
+    return getAddressArray(_REWARD_TOKENS_SLOT);
+  }
+
+  function _isAddressInList(address _searchValue, address[] memory _list) internal pure returns (bool) {
+    for (uint i = 0; i < _list.length; i++) {
+      if (_list[i] == _searchValue) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function _setStrategist(address _strategist) internal {
+    setAddress(_STRATEGIST_SLOT, _strategist);
+  }
+
+  function strategist() public view returns (address) {
+    return getAddress(_STRATEGIST_SLOT);
+  }
+
   function _setVault(address _address) internal {
     setAddress(_VAULT_SLOT, _address);
   }
 
-  function vault() public view returns (address) {
+  function vault() public virtual view returns (address) {
     return getAddress(_VAULT_SLOT);
   }
 
@@ -100,36 +163,24 @@ contract BaseUpgradeableStrategyStorage {
     return getUint256(_SELL_FLOOR_SLOT);
   }
 
-  function _setProfitSharingNumerator(uint256 _value) internal {
-    setUint256(_PROFIT_SHARING_NUMERATOR_SLOT, _value);
-  }
-
   function profitSharingNumerator() public view returns (uint256) {
-    return getUint256(_PROFIT_SHARING_NUMERATOR_SLOT);
+    return IController(controller()).profitSharingNumerator();
   }
 
-  function _setProfitSharingDenominator(uint256 _value) internal {
-    setUint256(_PROFIT_SHARING_DENOMINATOR_SLOT, _value);
+  function platformFeeNumerator() public view returns (uint256) {
+    return IController(controller()).platformFeeNumerator();
   }
 
-  function profitSharingDenominator() public view returns (uint256) {
-    return getUint256(_PROFIT_SHARING_DENOMINATOR_SLOT);
+  function strategistFeeNumerator() public view returns (uint256) {
+    return IController(controller()).strategistFeeNumerator();
   }
 
-  function allowedRewardClaimable() public view returns (bool) {
-    return getBoolean(_REWARD_CLAIMABLE_SLOT);
+  function feeDenominator() public view returns (uint256) {
+    return IController(controller()).feeDenominator();
   }
 
-  function _setRewardClaimable(bool _value) internal {
-    setBoolean(_REWARD_CLAIMABLE_SLOT, _value);
-  }
-
-  function multiSig() public view returns(address) {
-    return getAddress(_MULTISIG_SLOT);
-  }
-
-  function _setMultiSig(address _address) internal {
-    setAddress(_MULTISIG_SLOT, _address);
+  function universalLiquidator() public view returns (address) {
+    return IController(controller()).universalLiquidator();
   }
 
   // upgradeability
@@ -150,16 +201,16 @@ contract BaseUpgradeableStrategyStorage {
     return getUint256(_NEXT_IMPLEMENTATION_TIMESTAMP_SLOT);
   }
 
-  function _setNextImplementationDelay(uint256 _value) internal {
-    setUint256(_NEXT_IMPLEMENTATION_DELAY_SLOT, _value);
-  }
-
-  function nextImplementationDelay() public view returns (uint256) {
-    return getUint256(_NEXT_IMPLEMENTATION_DELAY_SLOT);
-  }
+    function nextImplementationDelay() public view returns (uint256) {
+        return IController(controller()).nextImplementationDelay();
+    }
 
   function setBoolean(bytes32 slot, bool _value) internal {
     setUint256(slot, _value ? 1 : 0);
+  }
+
+  function getBoolean(bytes32 slot) internal view returns (bool) {
+    return (getUint256(slot) == 1);
   }
 
   function setAddress(bytes32 slot, address _address) internal {
@@ -176,17 +227,6 @@ contract BaseUpgradeableStrategyStorage {
     }
   }
 
-  function setBytes32(bytes32 slot, bytes32 _value) internal {
-    // solhint-disable-next-line no-inline-assembly
-    assembly {
-      sstore(slot, _value)
-    }
-  }
-
-  function getBoolean(bytes32 slot) internal view returns (bool) {
-    return (getUint256(slot) == 1);
-  }
-
   function getAddress(bytes32 slot) internal view returns (address str) {
     // solhint-disable-next-line no-inline-assembly
     assembly {
@@ -201,10 +241,50 @@ contract BaseUpgradeableStrategyStorage {
     }
   }
 
-  function getBytes32(bytes32 slot) internal view returns (bytes32 str) {
-    // solhint-disable-next-line no-inline-assembly
-    assembly {
-      str := sload(slot)
+      function setUint256Array(bytes32 slot, uint256[] memory _values) internal {
+        // solhint-disable-next-line no-inline-assembly
+        setUint256(slot, _values.length);
+        for (uint i = 0; i < _values.length; i++) {
+            setUint256(bytes32(uint(slot) + 1 + i), _values[i]);
+        }
     }
-  }
+
+    function setAddressArray(bytes32 slot, address[] memory _values) internal {
+        // solhint-disable-next-line no-inline-assembly
+        setUint256(slot, _values.length);
+        for (uint i = 0; i < _values.length; i++) {
+            setAddress(bytes32(uint(slot) + 1 + i), _values[i]);
+        }
+    }
+
+
+    function getUint256Array(bytes32 slot) internal view returns (uint[] memory values) {
+        // solhint-disable-next-line no-inline-assembly
+        values = new uint[](getUint256(slot));
+        for (uint i = 0; i < values.length; i++) {
+            values[i] = getUint256(bytes32(uint(slot) + 1 + i));
+        }
+    }
+
+    function getAddressArray(bytes32 slot) internal view returns (address[] memory values) {
+        // solhint-disable-next-line no-inline-assembly
+        values = new address[](getUint256(slot));
+        for (uint i = 0; i < values.length; i++) {
+            values[i] = getAddress(bytes32(uint(slot) + 1 + i));
+        }
+    }
+
+    function setBytes32(bytes32 slot, bytes32 _value) internal {
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+        sstore(slot, _value)
+        }
+    }
+
+    function getBytes32(bytes32 slot) internal view returns (bytes32 str) {
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+        str := sload(slot)
+        }
+    }
 }

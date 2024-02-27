@@ -1,10 +1,11 @@
-pragma solidity 0.5.16;
+//SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
-import "@openzeppelin/upgrades/contracts/Initializable.sol";
+import "../upgradability/ReentrancyGuardUpgradeable.sol";
 import "./Storage.sol";
 
 // A clone of Governable supporting the Initializable interface and pattern
-contract GovernableInit is Initializable {
+contract GovernableInit is ReentrancyGuardUpgradeable {
 
   bytes32 internal constant _STORAGE_SLOT = 0xa7ec62784904ff31cbcc32d09932a58e7f1e4476e1d041995b37c917990b16dc;
 
@@ -17,8 +18,9 @@ contract GovernableInit is Initializable {
     assert(_STORAGE_SLOT == bytes32(uint256(keccak256("eip1967.governableInit.storage")) - 1));
   }
 
-  function initialize(address _store) public initializer {
+  function initialize(address _store) public virtual initializer {
     _setStorage(_store);
+    ReentrancyGuardUpgradeable.initialize();
   }
 
   function _setStorage(address newStorage) private {

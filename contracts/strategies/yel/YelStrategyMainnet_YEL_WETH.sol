@@ -1,4 +1,5 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 import "./YelStrategy.sol";
 
@@ -12,7 +13,6 @@ contract YelStrategyMainnet_YEL_WETH is YelStrategy {
   ) public initializer {
     address underlying = address(0xc83cE8612164eF7A13d17DDea4271DD8e8EEbE5d);
     address yel = address(0x7815bDa662050D84718B988735218CFfd32f75ea);
-    address weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     YelStrategy.initializeStrategy(
       _storage,
       underlying,
@@ -23,6 +23,5 @@ contract YelStrategyMainnet_YEL_WETH is YelStrategy {
       true,
       false
     );
-    swapRoutes[weth] = [yel, weth];
   }
 }

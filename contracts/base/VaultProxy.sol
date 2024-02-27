@@ -1,7 +1,8 @@
-pragma solidity 0.5.16;
+// SPDX-License-Identifier: Unlicense
+pragma solidity 0.6.12;
 
 import "./interface/IUpgradeSource.sol";
-import "@openzeppelin/upgrades/contracts/upgradeability/BaseUpgradeabilityProxy.sol";
+import "./upgradability/BaseUpgradeabilityProxy.sol";
 
 contract VaultProxy is BaseUpgradeabilityProxy {
 
