@@ -267,8 +267,8 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
   * Allows for depositing the underlying asset in exchange for shares.
   * Approval is assumed.
   */
-  function deposit(uint256 amount) external nonReentrant defense {
-    _deposit(amount, msg.sender, msg.sender);
+  function deposit(uint256 amount) external nonReentrant defense returns (uint256 minted) {
+    minted = _deposit(amount, msg.sender, msg.sender);
   }
 
   /*
@@ -276,19 +276,19 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
   * assigned to the holder.
   * This facilitates depositing for someone else (using DepositHelper)
   */
-  function depositFor(uint256 amount, address holder) public nonReentrant defense {
-    _deposit(amount, msg.sender, holder);
+  function depositFor(uint256 amount, address holder) public nonReentrant defense returns (uint256 minted) {
+    minted = _deposit(amount, msg.sender, holder);
   }
 
-  function withdraw(uint256 shares) external nonReentrant defense {
-    _withdraw(shares, msg.sender, msg.sender);
+  function withdraw(uint256 shares) external nonReentrant defense returns (uint256 amtUnderlying) {
+    amtUnderlying = _withdraw(shares, msg.sender, msg.sender);
   }
 
   function withdrawAll() public onlyControllerOrGovernance whenStrategyDefined {
     IStrategy(strategy()).withdrawAllToVault();
   }
 
-  function _deposit(uint256 amount, address sender, address beneficiary) internal {
+  function _deposit(uint256 amount, address sender, address beneficiary) internal returns (uint256) {
     require(amount > 0, "Cannot deposit 0");
     require(beneficiary != address(0), "holder must be defined");
 
@@ -305,9 +305,10 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
 
     // update the contribution amount for the beneficiary
     emit Deposit(sender, beneficiary, amount, toMint);
+    return toMint;
   }
 
-  function _withdraw(uint256 numberOfShares, address receiver, address owner) internal {
+  function _withdraw(uint256 numberOfShares, address receiver, address owner) internal returns (uint256) {
     require(totalSupply() > 0, "Vault has no shares");
     require(numberOfShares > 0, "numberOfShares must be greater than 0");
     uint256 totalSupply = totalSupply();
@@ -343,6 +344,7 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
 
     // update the withdrawal amount for the holder
     emit Withdraw(sender, receiver, owner, underlyingAmountToWithdraw, numberOfShares);
+    return underlyingAmountToWithdraw;
   }
 
   /**
@@ -365,5 +367,8 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
   function finalizeUpgrade() external override onlyGovernance {
     _setNextImplementation(address(0));
     _setNextImplementationTimestamp(0);
+    assembly {
+      sstore(_NOT_ENTERED_SLOT, true)
+    }
   }
 }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.6.12;
 
-import "./base/ConvexStrategyUL_V2.sol";
+import "./ConvexStrategy.sol";
 
-contract ConvexStrategyMainnet_crvUSD_USDC is ConvexStrategyUL_V2 {
+contract ConvexStrategyMainnet_crvUSD_USDC is ConvexStrategy {
 
   constructor() public {}
 
@@ -16,7 +16,7 @@ contract ConvexStrategyMainnet_crvUSD_USDC is ConvexStrategyUL_V2 {
     address crv = address(0xD533a949740bb3306d119CC777fa900bA034cd52);
     address cvx = address(0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B);
     address usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    ConvexStrategyUL_V2.initializeBaseStrategy(
+    ConvexStrategy.initializeBaseStrategy(
       _storage,
       underlying,
       _vault,

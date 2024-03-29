@@ -34,8 +34,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function deposit(uint256 _assets, address _receiver) public override nonReentrant defense returns (uint256) {
-        uint shares = convertToShares(_assets);
-        _deposit(_assets, msg.sender, _receiver);
+        uint256 shares = _deposit(_assets, msg.sender, _receiver);
         return shares;
     }
 
@@ -92,8 +91,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     nonReentrant
     defense
     returns (uint256) {
-        uint256 assets = convertToAssets(_shares);
-        _withdraw(_shares, _receiver, _owner);
+        uint256 assets = _withdraw(_shares, _receiver, _owner);
         return assets;
     }
 

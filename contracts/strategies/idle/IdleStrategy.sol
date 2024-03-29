@@ -7,51 +7,73 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "../../base/interface/IVault.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
-import "../../base/interface/compound/IComet.sol";
-import "../../base/interface/compound/ICometRewards.sol";
+import "../../base/interface/idle/IdleToken.sol";
+import "../../base/interface/idle/IdleTokenHelper.sol";
 
-contract CompoundStrategy is BaseUpgradeableStrategy {
+contract IdleStrategy is BaseUpgradeableStrategy {
 
   using SafeMath for uint256;
   using SafeERC20 for IERC20;
 
   address public constant harvestMSIG = address(0xF49440C1F012d041802b25A73e5B0B9166a75c02);
+  address public constant idleTokenHelper = address(0x04Ce60ed10F6D2CfF3AA015fc7b950D13c113be5);
 
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
-  bytes32 internal constant _MARKET_SLOT = 0x7e894854bb2aa938fcac0eb9954ddb51bd061fc228fb4e5b8e859d96c06bfaa0;
+  bytes32 internal constant _IDLE_TOKEN_SLOT = 0x13380ba87b49f66bcef8ae788a4167d4f221bf313d7f2247b34cebbade0afeb4;
+  bytes32 internal constant _REFERRAL_SLOT = 0x4b6f06a0614ccba013015008af8706cf84e48aa9040cbac7086d10fcb2a4aac3;
+  bytes32 internal constant _PROTECTED_SLOT = 0x4d197d446454146eb1952b8116177694336047ced9d933f8a7d486455812af04;
   bytes32 internal constant _STORED_SUPPLIED_SLOT = 0x280539da846b4989609abdccfea039bd1453e4f710c670b29b9eeaca0730c1a2;
+  bytes32 internal constant _VIRTUAL_PRICE_SLOT = 0x80497baf3a838caae518facdae57b718fde1de8378282fb04a2e3493e04f052f;
+
+  modifier updateVirtualPrice() {
+    if (protected()) {
+      require(virtualPrice() <= IdleTokenHelper(idleTokenHelper).getRedeemPrice(idleToken()), "virtual price is higher than needed");
+    }
+    _;
+    _setVirtualPrice(IdleTokenHelper(idleTokenHelper).getRedeemPrice(idleToken()));
+  }
 
   constructor() public BaseUpgradeableStrategy() {
-    assert(_MARKET_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.market")) - 1));
+    assert(_IDLE_TOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.idleToken")) - 1));
+    assert(_REFERRAL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.referral")) - 1));
+    assert(_PROTECTED_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.protected")) - 1));
     assert(_STORED_SUPPLIED_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.storedSupplied")) - 1));
+    assert(_VIRTUAL_PRICE_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.virtualPrice")) - 1));
   }
 
   function initializeBaseStrategy(
     address _storage,
     address _underlying,
     address _vault,
-    address _market,
-    address _rewardPool,
-    address _rewardToken
+    address _idleToken,
+    address _rewardToken,
+    address _referral,
+    bool _protected
   ) public initializer {
 
     BaseUpgradeableStrategy.initialize(
       _storage,
       _underlying,
       _vault,
-      _rewardPool,
+      _idleToken,
       _rewardToken,
       harvestMSIG
     );
 
-    address _lpt = IComet(_market).baseToken();
+    address _lpt = IdleToken(_idleToken).token();
     require(_lpt == _underlying, "Underlying mismatch");
 
-    _setMarket(_market);
+    _setIdleToken(_idleToken);
+    setAddress(_REFERRAL_SLOT, _referral);
+    setBoolean(_PROTECTED_SLOT, _protected);
+    _setVirtualPrice(IdleTokenHelper(idleTokenHelper).getRedeemPrice(_idleToken));
   }
 
   function currentSupplied() public view returns (uint256) {
-    return IComet(market()).balanceOf(address(this));
+    address _idleToken = idleToken();
+    uint256 balance = IERC20(_idleToken).balanceOf(address(this));
+    uint256 redeemPrice = IdleTokenHelper(idleTokenHelper).getRedeemPrice(_idleToken);
+    return balance.mul(redeemPrice).div(1e18);
   }
 
   function storedSupplied() public view returns (uint256) {
@@ -85,24 +107,25 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
     return true;
   }
 
-  function _emergencyExitRewardPool() internal {
-    uint256 stakedBalance = currentSupplied();
-    if (stakedBalance != 0) {
-        _withdrawUnderlyingFromPool(stakedBalance);
-    }
+  function _withdrawUnderlyingFromPool(uint256 amount) internal {
+    address _idleToken = idleToken();
+    uint256 redeemPrice = IdleTokenHelper(idleTokenHelper).getRedeemPrice(_idleToken);
+    uint256 toRedeem = amount.mul(1e18).div(redeemPrice).add(1);
+    IdleToken(_idleToken).redeemIdleToken(toRedeem);
   }
 
-  function _withdrawUnderlyingFromPool(uint256 amount) internal {
-    IComet(market()).withdraw(underlying(), Math.min(currentSupplied(), amount));
+  function _withdrawAllUnderlying() internal {
+    address _idleToken = idleToken();
+    IdleToken(_idleToken).redeemIdleToken(IERC20(_idleToken).balanceOf(address(this)));
   }
 
   function _enterRewardPool() internal {
-    address underlying_ = underlying();
-    address market_ = market();
-    uint256 entireBalance = IERC20(underlying_).balanceOf(address(this));
-    IERC20(underlying_).safeApprove(market_, 0);
-    IERC20(underlying_).safeApprove(market_, entireBalance);
-    IComet(market_).supply(underlying_, entireBalance);
+    address _underlying = underlying();
+    address _idleToken = idleToken();
+    uint256 entireBalance = IERC20(_underlying).balanceOf(address(this));
+    IERC20(_underlying).safeApprove(_idleToken, 0);
+    IERC20(_underlying).safeApprove(_idleToken, entireBalance);
+    IdleToken(_idleToken).mintIdleToken(entireBalance, true, referral());
   }
 
   function _investAllUnderlying() internal onlyNotPausedInvesting {
@@ -119,8 +142,8 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   *   Governance can exit the pool properly
   *   The function is only used for emergency to exit the pool
   */
-  function emergencyExit() public onlyGovernance {
-    _emergencyExitRewardPool();
+  function emergencyExit() public onlyGovernance updateVirtualPrice {
+    _withdrawAllUnderlying();
     _setPausedInvesting(true);
   }
 
@@ -132,11 +155,11 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   }
 
   function unsalvagableTokens(address token) public view returns (bool) {
-    return (token == rewardToken() || token == underlying() || token == market());
+    return (token == rewardToken() || token == underlying() || token == idleToken());
   }
 
   function _claimReward() internal {
-    ICometRewards(rewardPool()).claim(market(), address(this), true);
+    IdleToken(idleToken()).redeemIdleToken(0);
   }
 
   function _liquidateReward() internal {
@@ -182,10 +205,10 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   /*
   *   Withdraws all the asset to the vault
   */
-  function withdrawAllToVault() public restricted {
+  function withdrawAllToVault() public restricted updateVirtualPrice {
     _claimReward();
     _liquidateReward();
-    _withdrawUnderlyingFromPool(currentSupplied());
+    _withdrawAllUnderlying();
     address underlying_ = underlying();
     IERC20(underlying_).safeTransfer(vault(), IERC20(underlying_).balanceOf(address(this)));
     _updateStoredSupplied(true);
@@ -194,7 +217,7 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   /*
   *   Withdraws all the asset to the vault
   */
-  function withdrawToVault(uint256 _amount) public restricted {
+  function withdrawToVault(uint256 _amount) public restricted updateVirtualPrice {
     // Typically there wouldn't be any amount here
     // however, it is possible because of the emergencyExit
     address underlying_ = underlying();
@@ -218,6 +241,9 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   function investedUnderlyingBalance() external view returns (uint256) {
     if (rewardPool() == address(0)) {
       return IERC20(underlying()).balanceOf(address(this));
+    }
+    if (protected()) {
+      require(virtualPrice() <= IdleTokenHelper(idleTokenHelper).getRedeemPrice(idleToken()), "virtual price is higher than needed");
     }
     // Adding the amount locked in the reward pool and the amount that is somehow in this contract
     // both are in the units of "underlying"
@@ -246,26 +272,42 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   *   calling `investAllUnderlying()` affectively blocks the usage of `doHardWork`
   *   when the investing is being paused by governance.
   */
-  function doHardWork() external onlyNotPausedInvesting restricted {
+  function doHardWork() external onlyNotPausedInvesting restricted updateVirtualPrice {
     _claimReward();
     _liquidateReward();
     _investAllUnderlying();
   }
 
-  /**
-  * Can completely disable claiming UNI rewards and selling. Good for emergency withdraw in the
-  * simplest possible way.
-  */
-  function setSell(bool s) public onlyGovernance {
-    _setSell(s);
+  function _setIdleToken(address _address) internal {
+    setAddress(_IDLE_TOKEN_SLOT, _address);
   }
 
-  function _setMarket(address _address) internal {
-    setAddress(_MARKET_SLOT, _address);
+  function idleToken() public view returns (address) {
+    return getAddress(_IDLE_TOKEN_SLOT);
   }
 
-  function market() public view returns (address) {
-    return getAddress(_MARKET_SLOT);
+  function setReferral(address _address) public onlyGovernance {
+    setAddress(_REFERRAL_SLOT, _address);
+  }
+
+  function referral() public view returns (address) {
+    return getAddress(_REFERRAL_SLOT);
+  }
+
+  function setProtected(bool _value) public onlyGovernance {
+    setBoolean(_PROTECTED_SLOT, _value);
+  }
+
+  function protected() public view returns (bool) {
+    return getBoolean(_PROTECTED_SLOT);
+  }
+
+  function _setVirtualPrice(uint256 _value) internal {
+    setUint256(_VIRTUAL_PRICE_SLOT, _value);
+  }
+
+  function virtualPrice() public view returns (uint256) {
+    return getUint256(_VIRTUAL_PRICE_SLOT);
   }
 
   function finalizeUpgrade() external onlyGovernance {

@@ -1,13 +1,17 @@
+const BigNumber = require("bignumber.js");
 const makeVault = require("./make-vault.js");
 const addresses = require("../test-config.js");
 const IController = artifacts.require("IController");
-const IFeeRewardForwarder = artifacts.require("IFeeRewardForwarder");
-
-const ILiquidatorRegistry = artifacts.require("ILiquidatorRegistry");
-const INoMintRewardPool = artifacts.require("INoMintRewardPool");
+const IRewardForwarder = artifacts.require("IRewardForwarder");
+const Storage = artifacts.require("Storage");
+const Vault = artifacts.require("VaultV2");
+const ILiquidatorRegistry = artifacts.require("IUniversalLiquidatorRegistry");
 const IUpgradeableStrategy = artifacts.require("IUpgradeableStrategy");
+const IUniV3Dex = artifacts.require("IUniV3Dex");
 
 const IVault = artifacts.require("IVault");
+const IStrategy = artifacts.require("IStrategy");
+const IdleToken = artifacts.require("IdleToken");
 const Utils = require("./Utils.js");
 
 async function impersonates(targetAccounts){
@@ -28,36 +32,16 @@ async function setupCoreProtocol(config) {
     vault = await IVault.at(config.existingVaultAddress);
     console.log("Fetching Vault at: ", vault.address);
   } else {
-    const implAddress = config.vaultImplementationOverride || addresses.VaultImplementationV1;
+    const implAddress = config.vaultImplementationOverride || addresses.VaultImplementationV2;
     vault = await makeVault(implAddress, addresses.Storage, config.underlying.address, 100, 100, {
       from: config.governance,
     });
     console.log("New Vault Deployed: ", vault.address);
   }
 
+  storage = await Storage.at(addresses.Storage);
   controller = await IController.at(addresses.Controller);
-
-  if (config.feeRewardForwarder) {/*
-    const FeeRewardForwarder = artifacts.require("FeeRewardForwarder");
-    const feeRewardForwarder = await FeeRewardForwarder.new(
-      addresses.Storage,
-      addresses.FARM,
-      addresses.IFARM,
-      addresses.UniversalLiquidatorRegistry
-    );
-    config.feeRewardForwarder = feeRewardForwarder.address;*/
-    console.log("Setting up a custom fee reward forwarder...");
-    await controller.setFeeRewardForwarder(
-      config.feeRewardForwarder,
-      { from: config.governance }
-    );
-
-    const NoMintRewardPool = artifacts.require("NoMintRewardPool");
-    const farmRewardPool = await NoMintRewardPool.at("0x8f5adC58b32D4e5Ca02EAC0E293D35855999436C");
-    await farmRewardPool.setRewardDistribution(config.feeRewardForwarder, {from: config.governance});
-
-    console.log("Done setting up fee reward forwarder!");
-  }
+  feeRewardForwarder = await IRewardForwarder.at(await controller.rewardForwarder());
 
   let rewardPool = null;
 
@@ -116,10 +100,8 @@ async function setupCoreProtocol(config) {
       dex = Object.keys(config.liquidation[i])[0];
       await universalLiquidatorRegistry.setPath(
         web3.utils.keccak256(dex),
-        config.liquidation[i][dex][0],
-        config.liquidation[i][dex][config.liquidation[i][dex].length - 1],
         config.liquidation[i][dex],
-        {from: config.governance}
+        {from: config.ULOwner}
       );
     }
   }
@@ -131,7 +113,9 @@ async function setupCoreProtocol(config) {
   ];
 
   for(i = 0; i < config.strategyArgs.length ; i++){
-    if(config.strategyArgs[i] == "vaultAddr") {
+    if(config.strategyArgs[i] == "storageAddr") {
+      config.strategyArgs[i] = addresses.Storage;
+    } else if(config.strategyArgs[i] == "vaultAddr") {
       config.strategyArgs[i] = vault.address;
     } else if(config.strategyArgs[i] == "poolAddr" ){
       config.strategyArgs[i] = rewardPool.address;
@@ -161,22 +145,41 @@ async function setupCoreProtocol(config) {
 
   console.log("Strategy Deployed: ", strategy.address);
 
-  if (config.feeRewardForwarderLiquidationPath) {
-    // legacy path support
-    const path = config.feeRewardForwarderLiquidationPath;
-    await universalLiquidatorRegistry.setPath(
-      web3.utils.keccak256("uni"),
-      path[0],
-      path[path.length - 1],
-      path
-    );
-  }
-
   if (config.announceStrategy === true) {
     // Announce switch, time pass, switch to strategy
     await vault.announceStrategyUpdate(strategy.address, { from: config.governance });
+    // const oldStrat = await IStrategy.at(await vault.strategy());
+    // const idleToken = await IdleToken.at("0x5274891bEC421B39D23760c04A6755eCB444797C");
     console.log("Strategy switch announced. Waiting...");
     await Utils.waitHours(13);
+    // const balance = new BigNumber(await vault.underlyingBalanceWithInvestment());
+    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
+    // console.log("Withdrawn 10%")
+    // await idleToken.rebalance();
+    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
+    // console.log("Withdrawn 20%")
+    // await idleToken.rebalance();
+    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
+    // console.log("Withdrawn 30%")
+    // await idleToken.rebalance();
+    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
+    // console.log("Withdrawn 40%")
+    // await idleToken.rebalance();
+    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
+    // console.log("Withdrawn 50%")
+    // await idleToken.rebalance();
+    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
+    // console.log("Withdrawn 60%")
+    // await idleToken.rebalance();
+    // await oldStrat.withdrawToVault(balance.div(20), {from: config.governance})
+    // console.log("Withdrawn 65%")
+    // await oldStrat.withdrawToVault(balance.div(20), {from: config.governance})
+    // console.log("Withdrawn 70%")
+    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
+    // console.log("Withdrawn 90%")
+    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
+    // console.log("Withdrawn 100%")
+
     await vault.setStrategy(strategy.address, { from: config.governance });
     await vault.setVaultFractionToInvest(100, 100, { from: config.governance });
     console.log("Strategy switch completed.");
@@ -191,12 +194,24 @@ async function setupCoreProtocol(config) {
     strategy = await config.strategyArtifact.at(await vault.strategy());
     console.log("Strategy upgrade completed.");
   } else {
-    await controller.addVaultAndStrategy(
-      vault.address,
-      strategy.address,
-      { from: config.governance }
-    );
-    console.log("Strategy and vault added to Controller.");
+    await vault.setStrategy(strategy.address, {from: config.governance});
+  }
+
+  // set liquidation paths
+  if(config.uniV3Fee) {
+    const uniV3Dex = await IUniV3Dex.at("0xc1D0465FF243fEcE2856Eac534C16cf1C8fb1aBA");
+    for (i=0;i<config.uniV3Fee.length;i++) {
+      await uniV3Dex.setFee(config.uniV3Fee[i][0], config.uniV3Fee[i][1], config.uniV3Fee[i][2], {from: config.ULOwner})
+    }
+  }
+  
+  await storage.setController(addresses.Controller, {from: config.governance});
+  if (config.existingVaultAddress){
+    const vaultAsUpgradable = await IUpgradeableStrategy.at(config.existingVaultAddress );
+    await vaultAsUpgradable.scheduleUpgrade(addresses.VaultImplementationV2, { from: config.governance });
+    console.log("Vault upgrade scheduled. Waiting...");
+    await Utils.waitHours(13);
+    await vaultAsUpgradable.upgrade({ from: config.governance });
   }
 
   return [controller, vault, strategy, rewardPool];
@@ -204,7 +219,7 @@ async function setupCoreProtocol(config) {
 
 async function depositVault(_farmer, _underlying, _vault, _amount) {
   await _underlying.approve(_vault.address, _amount, { from: _farmer });
-  await _vault.deposit(_amount, { from: _farmer });
+  await _vault.deposit(_amount, _farmer, { from: _farmer });
 }
 
 async function setupFactory() {

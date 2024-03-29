@@ -19,9 +19,7 @@ contract YelStrategyMainnet_YEL_WETH is YelStrategy {
       _vault,
       address(0xe7c8477C0c7AAaD6106EBDbbED3a5a2665b273b9), // master chef contract
       yel,
-      1,  // Pool id
-      true,
-      false
+      1  // Pool id
     );
   }
 }

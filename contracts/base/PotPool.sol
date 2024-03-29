@@ -159,7 +159,7 @@ contract PotPool is IRewardDistributionRecipient, Controllable, ERC20 {
 
     //Overwrite ERC20's transfer function to block transfer of pTokens,
     //as transferring the token does not transfer the rewards or rights to unstake.
-    function transfer(address recipient, uint256 amount) public override returns (bool) {
+    function transfer(address /*recipient*/, uint256 amount) public override returns (bool) {
       if (amount > 0) {
         revert("Staked assets cannot be transferred");
       }

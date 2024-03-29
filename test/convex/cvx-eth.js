@@ -6,21 +6,22 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const Strategy = artifacts.require("CompoundStrategyMainnet_WETH");
+const Strategy = artifacts.require("ConvexStrategyMainnet_CVX_ETH");
 
 //This test was developed at blockNumber 19476475
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet CompoundV3 WETH", function() {
+describe("Mainnet Convex CVX-ETH", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0xc765faECA19B33483f2A105e7B02e309393A45B0";
+  let underlyingWhale = "0x14D2f4D1b0B5A7bB98b8Ec62Eb3723d461ffBcD2";
+  let crv = "0xD533a949740bb3306d119CC777fa900bA034cd52";
+  let cvx = "0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B";
   let weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-  let comp = "0xc00e94Cb662C3520282E6f5717214004A7f26888";
 
   // parties in the protocol
   let governance;
@@ -35,7 +36,7 @@ describe("Mainnet CompoundV3 WETH", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    underlying = await IERC20.at("0x3A283D9c08E8b55966afb64C515f5143cf907611");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -61,13 +62,20 @@ describe("Mainnet CompoundV3 WETH", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": "0xFE09e53A81Fe2808bc493ea64319109B5bAa573e",
+      "existingVaultAddress": "0x549fAd7794d331eA0E1675CD7e60cE6931914457",
       "announceStrategy": true,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
-      "liquidation": [{"uniV3": [weth, comp]}],
+      "liquidation": [
+        {"uniV3": [cvx, weth]},
+        {"uniV3": [crv, cvx]},
+      ],
+      "uniV3Fee": [
+        [cvx, crv, '10000'],
+        [weth, cvx, '10000'],
+      ]
     });
 
     // whale send underlying to farmers

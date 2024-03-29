@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.6.12;
 
-import "./base/ConvexStrategyCvxCRV.sol";
+import "./ConvexStrategyCvxCRV.sol";
 
 contract ConvexStrategyCvxCRVMainnet_cvxCRV is ConvexStrategyCvxCRV {
 

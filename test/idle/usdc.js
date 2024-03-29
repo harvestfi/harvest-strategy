@@ -1,25 +1,27 @@
 // Utilities
 const Utils = require("../utilities/Utils.js");
 const { impersonates, setupCoreProtocol, depositVault } = require("../utilities/hh-utils.js");
+const addresses = require("../test-config.js");
 
-const { send } = require("@openzeppelin/test-helpers");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-//const Strategy = artifacts.require("");
-const IdleStrategyUSDCMainnet = artifacts.require("IdleStrategyUSDCMainnet");
-const IVault = artifacts.require("IVault");
+const Strategy = artifacts.require("IdleStrategyMainnet_USDC");
 
+//This test was developed at blockNumber 19533200
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet IDLE USDC", function() {
+describe("Mainnet Idle USDC", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
-  // external setup, block number: 12882710
-  let underlyingWhale = "0xAe2D4617c862309A3d75A0fFB358c7a5009c673F";
+  // external setup
+  let underlyingWhale = "0x706481b340dAA42b64dc67C61682a92a8dfABbd7";
+  let usdc = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+  let idle = "0x875773784Af8135eA0ef43b5a374AaD105c5D39e";
+  let weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
   // parties in the protocol
   let governance;
@@ -41,15 +43,17 @@ describe("Mainnet IDLE USDC", function() {
   async function setupBalance(){
     let etherGiver = accounts[9];
     // Give whale some ether to make sure the following actions are good
-    await send.ether(etherGiver, underlyingWhale, "1" + "000000000000000000");
+    await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
 
-    farmerBalance = "1000000" + "000000";
+    farmerBalance = await underlying.balanceOf(underlyingWhale);
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
   }
 
   before(async function() {
-    governance = "0xf00dD244228F51547f0563e60bCa65a30FBF5f7f";
+    governance = addresses.Governance;
     accounts = await web3.eth.getAccounts();
+
+    await web3.eth.sendTransaction({ from: accounts[8], to: governance, value: 10e18});
 
     farmer1 = accounts[1];
 
@@ -59,13 +63,20 @@ describe("Mainnet IDLE USDC", function() {
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
       "existingVaultAddress": "0xf0358e8c3CD5Fa238a29301d0bEa3D63A17bEdBE",
-      "strategyArtifact": IdleStrategyUSDCMainnet,
       "announceStrategy": true,
+      "strategyArtifact": Strategy,
+      "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
+      "liquidation": [
+        {"uniV3": [idle, weth]},
+        {"uniV3": [idle, weth, usdc]},
+        {"uniV3": [usdc, weth, idle]},
+      ],
+      "uniV3Fee": [
+        [weth, idle, '3000'],
+      ]
     });
-
-    // vault = await IVault.at("0xf0358e8c3CD5Fa238a29301d0bEa3D63A17bEdBE");
 
     // whale send underlying to farmers
     await setupBalance();
@@ -75,30 +86,46 @@ describe("Mainnet IDLE USDC", function() {
     it("Farmer should earn money", async function() {
       let farmerOldBalance = new BigNumber(await underlying.balanceOf(farmer1));
       await depositVault(farmer1, underlying, vault, farmerBalance);
+      let fTokenBalance = new BigNumber(await vault.balanceOf(farmer1));
 
       // Using half days is to simulate how we doHardwork in the real world
       let hours = 10;
+      let blocksPerHour = 2400;
       let oldSharePrice;
       let newSharePrice;
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
-        let blocksPerHour = 2400;
+
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
-        await vault.doHardWork({ from: governance });
+        await controller.doHardWork(vault.address, { from: governance });
         newSharePrice = new BigNumber(await vault.getPricePerFullShare());
 
         console.log("old shareprice: ", oldSharePrice.toFixed());
         console.log("new shareprice: ", newSharePrice.toFixed());
-        console.log("growth: ", newSharePrice.toFixed()/oldSharePrice.toFixed());
+        console.log("growth: ", newSharePrice.toFixed() / oldSharePrice.toFixed());
 
+        apr = (newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))*365;
+        apy = ((newSharePrice.toFixed()/oldSharePrice.toFixed()-1)*(24/(blocksPerHour/300))+1)**365;
+
+        console.log("instant APR:", apr*100, "%");
+        console.log("instant APY:", (apy-1)*100, "%");
+        await vault.withdraw(fTokenBalance.div(10), { from: farmer1 });
+        await depositVault(farmer1, underlying, vault, new BigNumber(await underlying.balanceOf(farmer1)))
         await Utils.advanceNBlock(blocksPerHour);
       }
-      await vault.withdraw( (new BigNumber(await vault.balanceOf(farmer1))).toFixed() , { from: farmer1 });
+      fTokenBalance = new BigNumber(await vault.balanceOf(farmer1));
+      await vault.withdraw(fTokenBalance, { from: farmer1 });
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);
 
-      console.log("earned!");
+      apr = (farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))*365;
+      apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))+1)**365;
 
+      console.log("earned!");
+      console.log("Overall APR:", apr*100, "%");
+      console.log("Overall APY:", (apy-1)*100, "%");
+
+      await strategy.withdrawAllToVault({ from: governance }); // making sure can withdraw all for a next switch
     });
   });
 });
