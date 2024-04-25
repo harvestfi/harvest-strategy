@@ -11,6 +11,7 @@ import "./inheritance/Governable.sol";
 import "./interface/IController.sol";
 import "./interface/IStrategy.sol";
 import "./interface/IVault.sol";
+import "./interface/IRewardForwarder.sol";
 
 contract Controller is Governable {
     using SafeERC20 for IERC20;
@@ -345,5 +346,15 @@ contract Controller is Governable {
         tempNextImplementationDelay = 0;
         tempNextImplementationDelayTimestamp = 0;
         emit ConfirmNextImplementationDelay(nextImplementationDelay);
+    }
+
+    //backwards compatibility
+    function notifyFee(address token, uint256 fee) external {
+        if (fee > 0) {
+            IERC20(token).safeTransferFrom(msg.sender, address(this), fee);
+            IERC20(token).safeApprove(rewardForwarder, 0);
+            IERC20(token).safeApprove(rewardForwarder, fee);
+            IRewardForwarder(rewardForwarder).notifyFee(token, fee, 0, 0);
+        }
     }
 }

@@ -14,7 +14,6 @@ import "./interface/IUpgradeSource.sol";
 import "./inheritance/ControllableInit.sol";
 import "./VaultStorage.sol";
 
-
 contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultStorage {
   using SafeERC20Upgradeable for IERC20Upgradeable;
   using AddressUpgradeable for address;
@@ -370,5 +369,10 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
     assembly {
       sstore(_NOT_ENTERED_SLOT, true)
     }
+    __ERC20_init_unchained(
+      string(abi.encodePacked("FARM_", ERC20Upgradeable(underlying()).symbol())),
+      string(abi.encodePacked("f", ERC20Upgradeable(underlying()).symbol()))
+    );
+    _setupDecimals(ERC20Upgradeable(underlying()).decimals());
   }
 }
