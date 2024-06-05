@@ -1,4 +1,3 @@
-const BigNumber = require("bignumber.js");
 const makeVault = require("./make-vault.js");
 const addresses = require("../test-config.js");
 const IController = artifacts.require("IController");
@@ -10,8 +9,7 @@ const IUpgradeableStrategy = artifacts.require("IUpgradeableStrategy");
 const IUniV3Dex = artifacts.require("IUniV3Dex");
 
 const IVault = artifacts.require("IVault");
-const IStrategy = artifacts.require("IStrategy");
-const IdleToken = artifacts.require("IdleToken");
+const ERC20 = artifacts.require("ERC20");
 const Utils = require("./Utils.js");
 
 async function impersonates(targetAccounts){
@@ -148,38 +146,8 @@ async function setupCoreProtocol(config) {
   if (config.announceStrategy === true) {
     // Announce switch, time pass, switch to strategy
     await vault.announceStrategyUpdate(strategy.address, { from: config.governance });
-    // const oldStrat = await IStrategy.at(await vault.strategy());
-    // const idleToken = await IdleToken.at("0x5274891bEC421B39D23760c04A6755eCB444797C");
     console.log("Strategy switch announced. Waiting...");
     await Utils.waitHours(13);
-    // const balance = new BigNumber(await vault.underlyingBalanceWithInvestment());
-    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
-    // console.log("Withdrawn 10%")
-    // await idleToken.rebalance();
-    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
-    // console.log("Withdrawn 20%")
-    // await idleToken.rebalance();
-    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
-    // console.log("Withdrawn 30%")
-    // await idleToken.rebalance();
-    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
-    // console.log("Withdrawn 40%")
-    // await idleToken.rebalance();
-    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
-    // console.log("Withdrawn 50%")
-    // await idleToken.rebalance();
-    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
-    // console.log("Withdrawn 60%")
-    // await idleToken.rebalance();
-    // await oldStrat.withdrawToVault(balance.div(20), {from: config.governance})
-    // console.log("Withdrawn 65%")
-    // await oldStrat.withdrawToVault(balance.div(20), {from: config.governance})
-    // console.log("Withdrawn 70%")
-    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
-    // console.log("Withdrawn 90%")
-    // await oldStrat.withdrawToVault(balance.div(10), {from: config.governance})
-    // console.log("Withdrawn 100%")
-
     await vault.setStrategy(strategy.address, { from: config.governance });
     await vault.setVaultFractionToInvest(100, 100, { from: config.governance });
     console.log("Strategy switch completed.");
@@ -193,6 +161,8 @@ async function setupCoreProtocol(config) {
     await vault.setVaultFractionToInvest(100, 100, { from: config.governance });
     strategy = await config.strategyArtifact.at(await vault.strategy());
     console.log("Strategy upgrade completed.");
+  } else if (config.existingVaultAddress) {
+    strategy = await config.strategyArtifact.at(await vault.strategy());
   } else {
     await vault.setStrategy(strategy.address, {from: config.governance});
   }
@@ -205,13 +175,22 @@ async function setupCoreProtocol(config) {
     }
   }
   
-  await storage.setController(addresses.Controller, {from: config.governance});
   if (config.existingVaultAddress){
-    const vaultAsUpgradable = await IUpgradeableStrategy.at(config.existingVaultAddress );
-    await vaultAsUpgradable.scheduleUpgrade(addresses.VaultImplementationV2, { from: config.governance });
+    const vaultToken = await ERC20.at(config.existingVaultAddress);
+    const decimalsBef = await vaultToken.decimals();
+    console.log(decimalsBef)
+    console.log(await vaultToken.symbol())
+    console.log(await vaultToken.name())
+    const vaultAsUpgradable = await IUpgradeableStrategy.at(config.existingVaultAddress);
+    const impl = await Vault.new();
+    await vaultAsUpgradable.scheduleUpgrade(impl.address, { from: config.governance });
     console.log("Vault upgrade scheduled. Waiting...");
     await Utils.waitHours(13);
     await vaultAsUpgradable.upgrade({ from: config.governance });
+    const decimalsAft = await vaultToken.decimals();
+    console.log(decimalsAft)
+    console.log(await vaultToken.symbol())
+    console.log(await vaultToken.name())
   }
 
   return [controller, vault, strategy, rewardPool];
