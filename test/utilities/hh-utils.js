@@ -176,21 +176,12 @@ async function setupCoreProtocol(config) {
   }
   
   if (config.existingVaultAddress){
-    const vaultToken = await ERC20.at(config.existingVaultAddress);
-    const decimalsBef = await vaultToken.decimals();
-    console.log(decimalsBef)
-    console.log(await vaultToken.symbol())
-    console.log(await vaultToken.name())
     const vaultAsUpgradable = await IUpgradeableStrategy.at(config.existingVaultAddress);
     const impl = await Vault.new();
     await vaultAsUpgradable.scheduleUpgrade(impl.address, { from: config.governance });
     console.log("Vault upgrade scheduled. Waiting...");
     await Utils.waitHours(13);
     await vaultAsUpgradable.upgrade({ from: config.governance });
-    const decimalsAft = await vaultToken.decimals();
-    console.log(decimalsAft)
-    console.log(await vaultToken.symbol())
-    console.log(await vaultToken.name())
   }
 
   return [controller, vault, strategy, rewardPool];

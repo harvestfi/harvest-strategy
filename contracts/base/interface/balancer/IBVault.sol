@@ -2,7 +2,6 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./IAsset.sol";
 
 interface IBVault {
@@ -19,7 +18,7 @@ interface IBVault {
     /**
      * @dev Returns `user`'s Internal Balance for a set of tokens.
      */
-    function getInternalBalance(address user, IERC20[] calldata tokens) external view returns (uint256[] memory);
+    function getInternalBalance(address user, address[] calldata tokens) external view returns (uint256[] memory);
 
     /**
      * @dev Performs a set of user balance operations, which involve Internal Balance (deposit, withdraw or transfer)
@@ -46,7 +45,7 @@ interface IBVault {
     //
     // - DEPOSIT_INTERNAL
     // Increases the Internal Balance of the `recipient` account by transferring tokens from the corresponding
-    // `sender`. The sender must have allowed the Vault to use their tokens via `IERC20.approve()`.
+    // `sender`. The sender must have allowed the Vault to use their tokens via `address.approve()`.
     //
     // ETH can be used by passing the ETH sentinel value as the asset and forwarding ETH in the call: it will be wrapped
     // and deposited as WETH. Any ETH amount remaining will be sent back to the caller (not the sender, which is
@@ -89,12 +88,12 @@ interface IBVault {
      * Because Internal Balance works exclusively with ERC20 tokens, ETH deposits and withdrawals will use the WETH
      * address.
      */
-    event InternalBalanceChanged(address indexed user, IERC20 indexed token, int256 delta);
+    event InternalBalanceChanged(address indexed user, address indexed token, int256 delta);
 
     /**
      * @dev Emitted when a user's Vault ERC20 allowance is used by the Vault to transfer tokens to an external account.
      */
-    event ExternalBalanceTransfer(IERC20 indexed token, address indexed sender, address recipient, uint256 amount);
+    event ExternalBalanceTransfer(address indexed token, address indexed sender, address recipient, uint256 amount);
 
     // Pools
     //
@@ -164,14 +163,14 @@ interface IBVault {
      */
     function registerTokens(
         bytes32 poolId,
-        IERC20[] calldata tokens,
+        address[] calldata tokens,
         address[] calldata assetManagers
     ) external;
 
     /**
      * @dev Emitted when a Pool registers tokens by calling `registerTokens`.
      */
-    event TokensRegistered(bytes32 indexed poolId, IERC20[] tokens, address[] assetManagers);
+    event TokensRegistered(bytes32 indexed poolId, address[] tokens, address[] assetManagers);
 
     /**
      * @dev Deregisters `tokens` for the `poolId` Pool. Must be called by the Pool's contract.
@@ -184,12 +183,12 @@ interface IBVault {
      *
      * Emits a `TokensDeregistered` event.
      */
-    function deregisterTokens(bytes32 poolId, IERC20[] calldata tokens) external;
+    function deregisterTokens(bytes32 poolId, address[] calldata tokens) external;
 
     /**
      * @dev Emitted when a Pool deregisters tokens by calling `deregisterTokens`.
      */
-    event TokensDeregistered(bytes32 indexed poolId, IERC20[] tokens);
+    event TokensDeregistered(bytes32 indexed poolId, address[] tokens);
 
     /**
      * @dev Returns detailed information for a Pool's registered token.
@@ -208,7 +207,7 @@ interface IBVault {
      *
      * `assetManager` is the Pool's token Asset Manager.
      */
-    function getPoolTokenInfo(bytes32 poolId, IERC20 token)
+    function getPoolTokenInfo(bytes32 poolId, address token)
         external
         view
         returns (
@@ -236,7 +235,7 @@ interface IBVault {
         external
         view
         returns (
-            IERC20[] memory tokens,
+            address[] memory tokens,
             uint256[] memory balances,
             uint256 lastChangeBlock
         );
@@ -345,7 +344,7 @@ interface IBVault {
     event PoolBalanceChanged(
         bytes32 indexed poolId,
         address indexed liquidityProvider,
-        IERC20[] tokens,
+        address[] tokens,
         int256[] deltas,
         uint256[] protocolFeeAmounts
     );
@@ -501,8 +500,8 @@ interface IBVault {
      */
     event Swap(
         bytes32 indexed poolId,
-        IERC20 indexed tokenIn,
-        IERC20 indexed tokenOut,
+        address indexed tokenIn,
+        address indexed tokenOut,
         uint256 amountIn,
         uint256 amountOut
     );
@@ -515,7 +514,7 @@ interface IBVault {
      *
      * If `fromInternalBalance` is true, the `sender`'s Internal Balance will be preferred, performing an ERC20
      * transfer for the difference between the requested amount and the User's Internal Balance (if any). The `sender`
-     * must have allowed the Vault to use their tokens via `IERC20.approve()`. This matches the behavior of
+     * must have allowed the Vault to use their tokens via `address.approve()`. This matches the behavior of
      * `joinPool`.
      *
      * If `toInternalBalance` is true, tokens will be deposited to `recipient`'s internal balance instead of
