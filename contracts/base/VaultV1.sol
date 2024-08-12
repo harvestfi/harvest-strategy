@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
-import "@openzeppelin/contracts-upgradeable/math/MathUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/MathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
@@ -13,42 +13,18 @@ import "./interface/IController.sol";
 import "./interface/IUpgradeSource.sol";
 import "./inheritance/ControllableInit.sol";
 import "./VaultStorage.sol";
+import "./interface/IERC4626.sol";
 
 contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultStorage {
   using SafeERC20Upgradeable for IERC20Upgradeable;
   using AddressUpgradeable for address;
   using SafeMathUpgradeable for uint256;
 
-  /**
-   * Caller has exchanged assets for shares, and transferred those shares to owner.
-   *
-   * MUST be emitted when tokens are deposited into the Vault via the mint and deposit methods.
-   */
-  event Deposit(
-      address indexed sender,
-      address indexed receiver,
-      uint256 assets,
-      uint256 shares
-  );
-
-  /**
-   * Caller has exchanged shares, owned by owner, for assets, and transferred those assets to receiver.
-   *
-   * MUST be emitted when shares are withdrawn from the Vault in ERC4626.redeem or ERC4626.withdraw methods.
-   */
-  event Withdraw(
-      address indexed sender,
-      address indexed receiver,
-      address indexed owner,
-      uint256 assets,
-      uint256 shares
-  );
   event Invest(uint256 amount);
   event StrategyAnnounced(address newStrategy, uint256 time);
   event StrategyChanged(address newStrategy, address oldStrategy);
 
-
-  constructor() public {
+  constructor() {
   }
 
   // the function is name differently to not cause inheritance clash in truffle and allows tests
@@ -65,7 +41,7 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
       string(abi.encodePacked("FARM_", ERC20Upgradeable(_underlying).symbol())),
       string(abi.encodePacked("f", ERC20Upgradeable(_underlying).symbol()))
     );
-    _setupDecimals(ERC20Upgradeable(_underlying).decimals());
+    _setDecimals(ERC20Upgradeable(_underlying).decimals());
 
     ControllableInit.initialize(
       _storage
@@ -90,6 +66,10 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
 
   function underlyingUnit() public view returns(uint256) {
     return _underlyingUnit();
+  }
+
+  function decimals() public view override returns(uint8) {
+    return uint8(_decimals());
   }
 
   function vaultFractionToInvestNumerator() public view returns(uint256) {
@@ -221,7 +201,7 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
       }
       _setStrategy(_strategy);
       IERC20Upgradeable(underlying()).safeApprove(address(strategy()), 0);
-      IERC20Upgradeable(underlying()).safeApprove(address(strategy()), uint256(~0));
+      IERC20Upgradeable(underlying()).safeApprove(address(strategy()), uint256(type(uint).max));
     }
     finalizeStrategyUpdate();
   }
@@ -303,7 +283,7 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
     IERC20Upgradeable(underlying()).safeTransferFrom(sender, address(this), amount);
 
     // update the contribution amount for the beneficiary
-    emit Deposit(sender, beneficiary, amount, toMint);
+    emit IERC4626.Deposit(sender, beneficiary, amount, toMint);
     return toMint;
   }
 
@@ -315,7 +295,7 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
     address sender = msg.sender;
       if (sender != owner) {
         uint256 currentAllowance = allowance(owner, sender);
-        if (currentAllowance != uint(-1)) {
+        if (currentAllowance != uint(type(uint).max)) {
           require(currentAllowance >= numberOfShares, "ERC20: transfer amount exceeds allowance");
           _approve(owner, sender, currentAllowance - numberOfShares);
         }
@@ -342,7 +322,7 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
     IERC20Upgradeable(underlying()).safeTransfer(receiver, underlyingAmountToWithdraw);
 
     // update the withdrawal amount for the holder
-    emit Withdraw(sender, receiver, owner, underlyingAmountToWithdraw, numberOfShares);
+    emit IERC4626.Withdraw(sender, receiver, owner, underlyingAmountToWithdraw, numberOfShares);
     return underlyingAmountToWithdraw;
   }
 
@@ -366,13 +346,5 @@ contract VaultV1 is ERC20Upgradeable, IUpgradeSource, ControllableInit, VaultSto
   function finalizeUpgrade() external override onlyGovernance {
     _setNextImplementation(address(0));
     _setNextImplementationTimestamp(0);
-    assembly {
-      sstore(_NOT_ENTERED_SLOT, true)
-    }
-    __ERC20_init_unchained(
-      string(abi.encodePacked("FARM_", ERC20Upgradeable(underlying()).symbol())),
-      string(abi.encodePacked("f", ERC20Upgradeable(underlying()).symbol()))
-    );
-    _setupDecimals(ERC20Upgradeable(underlying()).decimals());
   }
 }

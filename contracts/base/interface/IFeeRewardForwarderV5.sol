@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 interface IFeeRewardForwarderV5 {
     function poolNotifyFixedTarget(address _token, uint256 _amount) external;

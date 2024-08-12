@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 import "./ConvexStrategyCvxCRV.sol";
 
 contract ConvexStrategyCvxCRVMainnet_cvxCRV is ConvexStrategyCvxCRV {
 
-  constructor() public {}
+  constructor() {}
 
   function initializeStrategy(
     address _storage,

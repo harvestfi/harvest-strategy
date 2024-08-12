@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 import "./interface/IERC4626.sol";
 import "./VaultV1.sol";
@@ -26,7 +26,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function maxDeposit(address /*caller*/) public view override returns (uint256) {
-        return uint(-1);
+        return uint(type(uint).max);
     }
 
     function previewDeposit(uint256 _assets) public view override returns (uint256) {
@@ -39,7 +39,7 @@ contract VaultV2 is IERC4626, VaultV1 {
     }
 
     function maxMint(address /*caller*/) public view override returns (uint256) {
-        return uint(-1);
+        return uint(type(uint).max);
     }
 
     function previewMint(uint256 _shares) public view override returns (uint256) {

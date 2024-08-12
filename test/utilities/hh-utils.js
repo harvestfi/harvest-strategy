@@ -6,10 +6,9 @@ const Storage = artifacts.require("Storage");
 const Vault = artifacts.require("VaultV2");
 const ILiquidatorRegistry = artifacts.require("IUniversalLiquidatorRegistry");
 const IUpgradeableStrategy = artifacts.require("IUpgradeableStrategy");
-const IUniV3Dex = artifacts.require("IUniV3Dex");
+const IDex = artifacts.require("IDex");
 
 const IVault = artifacts.require("IVault");
-const ERC20 = artifacts.require("ERC20");
 const Utils = require("./Utils.js");
 
 async function impersonates(targetAccounts){
@@ -169,9 +168,15 @@ async function setupCoreProtocol(config) {
 
   // set liquidation paths
   if(config.uniV3Fee) {
-    const uniV3Dex = await IUniV3Dex.at("0xc1D0465FF243fEcE2856Eac534C16cf1C8fb1aBA");
+    const dex = await IDex.at("0xc1D0465FF243fEcE2856Eac534C16cf1C8fb1aBA");
     for (i=0;i<config.uniV3Fee.length;i++) {
-      await uniV3Dex.setFee(config.uniV3Fee[i][0], config.uniV3Fee[i][1], config.uniV3Fee[i][2], {from: config.ULOwner})
+      await dex.setFee(config.uniV3Fee[i][0], config.uniV3Fee[i][1], config.uniV3Fee[i][2], {from: config.ULOwner})
+    }
+  }
+  if(config.balPool) {
+    const dex = await IDex.at("0x2F04b8a306C482D9d9fdca083e2b9Ad20F74eA05");
+    for (i=0;i<config.balPool.length;i++) {
+      await dex.setPool(config.balPool[i][0], config.balPool[i][1], config.balPool[i][2], {from: config.ULOwner})
     }
   }
   

@@ -1,12 +1,11 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
-pragma experimental ABIEncoderV2;
+pragma solidity 0.8.26;
 
 import "./AuraStrategy.sol";
 
 contract AuraStrategyMainnet_APW_ETH is AuraStrategy {
 
-  constructor() public {}
+  constructor() {}
 
   function initializeStrategy(
     address _storage,

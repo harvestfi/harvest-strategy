@@ -1,11 +1,11 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 import "./Governable.sol";
 
 contract Controllable is Governable {
 
-  constructor(address _storage) public Governable(_storage) {
+  constructor(address _storage) Governable(_storage) {
   }
 
   modifier onlyController() {

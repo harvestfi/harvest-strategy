@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
-import "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * Same old `ReentrancyGuard`, but can be used by upgradable contracts
@@ -24,7 +24,7 @@ contract ReentrancyGuardUpgradeable is Initializable {
         _setNotEntered(_NOT_ENTERED_SLOT, true);
     }
 
-    constructor() public {
+    constructor() {
         assert(_NOT_ENTERED_SLOT == bytes32(uint256(keccak256("eip1967.reentrancyGuard.notEntered")) - 1));
     }
 

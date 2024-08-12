@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
-import "@openzeppelin/contracts/math/Math.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../base/interface/IVault.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
@@ -33,7 +33,7 @@ contract IdleStrategy is BaseUpgradeableStrategy {
     _setVirtualPrice(IdleTokenHelper(idleTokenHelper).getRedeemPrice(idleToken()));
   }
 
-  constructor() public BaseUpgradeableStrategy() {
+  constructor() BaseUpgradeableStrategy() {
     assert(_IDLE_TOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.idleToken")) - 1));
     assert(_REFERRAL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.referral")) - 1));
     assert(_PROTECTED_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.protected")) - 1));

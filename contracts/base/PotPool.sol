@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 import "./inheritance/Controllable.sol";
 import "./interface/IController.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/math/Math.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -16,7 +16,7 @@ abstract contract IRewardDistributionRecipient is Ownable {
 
     mapping (address => bool) public rewardDistribution;
 
-    constructor(address[] memory _rewardDistributions) public {
+    constructor(address[] memory _rewardDistributions) {
         // multisig
         rewardDistribution[0xF49440C1F012d041802b25A73e5B0B9166a75c02] = true;
         // NotifyHelper
@@ -145,7 +145,7 @@ contract PotPool is IRewardDistributionRecipient, Controllable, ERC20 {
         string memory _name,
         string memory _symbol,
         uint8 _decimals
-      ) public
+      )
       ERC20(_name, _symbol)
       IRewardDistributionRecipient(_rewardDistribution)
       Controllable(_storage) // only used for referencing the grey list
@@ -295,13 +295,13 @@ contract PotPool is IRewardDistributionRecipient, Controllable, ERC20 {
     }
 
     function addRewardToken(address rt) public onlyGovernanceOrRewardDistribution {
-      require(getRewardTokenIndex(rt) == uint256(-1), "Reward token already exists");
+      require(getRewardTokenIndex(rt) == uint256(type(uint).max), "Reward token already exists");
       rewardTokens.push(rt);
     }
 
     function removeRewardToken(address rt) public onlyGovernanceOrRewardDistribution {
       uint256 i = getRewardTokenIndex(rt);
-      require(i != uint256(-1), "Reward token does not exists");
+      require(i != uint256(type(uint).max), "Reward token does not exists");
       require(periodFinishForToken[rewardTokens[i]] < block.timestamp, "Can only remove when the reward period has passed");
       require(rewardTokens.length > 1, "Cannot remove the last reward token");
       uint256 lastIndex = rewardTokens.length - 1;
@@ -320,7 +320,7 @@ contract PotPool is IRewardDistributionRecipient, Controllable, ERC20 {
         if(rewardTokens[i] == rt)
           return i;
       }
-      return uint256(-1);
+      return uint256(type(uint).max);
     }
 
     function notifyTargetRewardAmount(address _rewardToken, uint256 reward)
@@ -329,10 +329,10 @@ contract PotPool is IRewardDistributionRecipient, Controllable, ERC20 {
         updateRewards(address(0))
     {
         // overflow fix according to https://sips.synthetix.io/sips/sip-77
-        require(reward < uint(-1) / 1e18, "the notified reward cannot invoke multiplication overflow");
+        require(reward < uint(type(uint).max) / 1e18, "the notified reward cannot invoke multiplication overflow");
 
         uint256 i = getRewardTokenIndex(_rewardToken);
-        require(i != uint256(-1), "rewardTokenIndex not found");
+        require(i != uint256(type(uint).max), "rewardTokenIndex not found");
 
         if (block.timestamp >= periodFinishForToken[_rewardToken]) {
             rewardRateForToken[_rewardToken] = reward.div(duration);

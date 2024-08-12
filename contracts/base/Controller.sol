@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./inheritance/Governable.sol";
@@ -102,9 +102,7 @@ contract Controller is Governable {
         address _rewardForwarder,
         address _universalLiquidator,
         uint _nextImplementationDelay
-    )
-    Governable(_storage)
-    public {
+    ) Governable(_storage) {
         require(_targetToken != address(0), "_targetToken should not be empty");
         require(_protocolFeeReceiver != address(0), "_protocolFeeReceiver should not be empty");
         require(_profitSharingReceiver != address(0), "_profitSharingReceiver should not be empty");

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 interface IUniV3VaultFactory {
   function deploy(address _storage, uint256 univ3PoolId) external returns (address vault);

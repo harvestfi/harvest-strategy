@@ -1,12 +1,12 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity 0.6.12;
+pragma solidity 0.8.26;
 
 contract Storage {
 
   address public governance;
   address public controller;
 
-  constructor() public {
+  constructor() {
     governance = msg.sender;
   }
 

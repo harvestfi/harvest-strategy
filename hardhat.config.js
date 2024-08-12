@@ -19,7 +19,7 @@ module.exports = {
       allowUnlimitedContractSize: true,
       forking: {
         url: "https://eth-mainnet.alchemyapi.io/v2/" + keys.alchemyKeyMainnet,
-        // blockNumber: 13984950, // <-- edit here
+        blockNumber: 20514630, // <-- edit here
       },
     },
     mainnet: {
@@ -31,7 +31,7 @@ module.exports = {
   },
   solidity: {
     compilers: [{
-        version: "0.6.12",
+        version: "0.8.26",
         settings: {
           optimizer: {
             enabled: true,
