@@ -189,7 +189,7 @@ contract IdleStrategy is BaseUpgradeableStrategy {
     _notifyProfitInRewardToken(_rewardToken, rewardBalance.add(convertedFee.mul(feeDenominator()).div(totalFeeNumerator())));
     uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
-    if (remainingRewardBalance == 0) {
+    if (remainingRewardBalance < 1e15) {
       return;
     }
 
