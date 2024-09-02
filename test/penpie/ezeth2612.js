@@ -6,22 +6,22 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const Strategy = artifacts.require("PenpieStrategyMainnet_weETHs2612");
+const Strategy = artifacts.require("PenpieStrategyMainnet_ezETH2612");
 
-//This test was developed at blockNumber 20627000
+//This test was developed at blockNumber 20661000
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Penpie weETHs-LP 26/12", function() {
+describe("Mainnet Penpie ezETH-LP 26/12", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x96977d15ee849bcbB23Ea88F0517e1e4fAad81D4";
+  let underlyingWhale = "0x123d9aF353473f5CA0c8d20a36704833d56337fd";
   let pendle = "0x808507121B80c02388fAd14726482e061B8da827";
   let weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-  let weeths = "0x917ceE801a67f933F2e6b33fC0cD1ED2d5909D88";
+  let ezeth = "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110";
 
   // parties in the protocol
   let governance;
@@ -36,7 +36,7 @@ describe("Mainnet Penpie weETHs-LP 26/12", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x40789E8536C668c6A249aF61c81b9dfaC3EB8F32");
+    underlying = await IERC20.at("0xD8F12bCDE578c653014F27379a6114F67F0e445f");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -70,10 +70,13 @@ describe("Mainnet Penpie weETHs-LP 26/12", function() {
       "governance": governance,
       "liquidation": [
         {"uniV3": [pendle, weth]},
-        {"curve": [weth, weeths]},
+        {"balancer": [weth, ezeth]}
       ],
       "uniV3Fee": [
         [pendle, weth, 3000],
+      ],
+      "balPool": [
+        [weth, ezeth, "0x596192bb6e41802428ac943d2f1476c1af25cc0e000000000000000000000659"],
       ],
       "ULOwner": addresses.ULOwner
     });

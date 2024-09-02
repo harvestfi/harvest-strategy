@@ -6,22 +6,23 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const Strategy = artifacts.require("PenpieStrategyMainnet_weETHs2612");
+const Strategy = artifacts.require("PenpieStrategyMainnet_sUSDe2612");
 
-//This test was developed at blockNumber 20627000
+//This test was developed at blockNumber 20633000
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Penpie weETHs-LP 26/12", function() {
+describe("Mainnet Penpie sUSDe-LP 26/12", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x96977d15ee849bcbB23Ea88F0517e1e4fAad81D4";
+  let underlyingWhale = "0x151a82747c8959af83dA35D8c4d8535Cc18d22D8";
   let pendle = "0x808507121B80c02388fAd14726482e061B8da827";
   let weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-  let weeths = "0x917ceE801a67f933F2e6b33fC0cD1ED2d5909D88";
+  let susde = "0x9D39A5DE30e57443BfF2A8307A4256c8797A3497";
+  let crvusd = "0xf939e0a03fb07f59a73314e73794be0e57ac1b4e";
 
   // parties in the protocol
   let governance;
@@ -36,7 +37,7 @@ describe("Mainnet Penpie weETHs-LP 26/12", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x40789E8536C668c6A249aF61c81b9dfaC3EB8F32");
+    underlying = await IERC20.at("0xa0ab94DeBB3cC9A7eA77f3205ba4AB23276feD08");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -70,10 +71,14 @@ describe("Mainnet Penpie weETHs-LP 26/12", function() {
       "governance": governance,
       "liquidation": [
         {"uniV3": [pendle, weth]},
-        {"curve": [weth, weeths]},
+        {"curve": [weth, crvusd, susde]}
       ],
       "uniV3Fee": [
         [pendle, weth, 3000],
+      ],
+      "curveSetup": [
+        [weth, crvusd, "0x4ebdf703948ddcea3b11f675b4d1fba9d2414a14", [1, 0, 1, 3, 3]],
+        [crvusd, susde, "0x57064f49ad7123c92560882a45518374ad982e85", [0, 1, 1, 10, 2]],
       ],
       "ULOwner": addresses.ULOwner
     });

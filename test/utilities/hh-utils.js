@@ -179,6 +179,13 @@ async function setupCoreProtocol(config) {
       await dex.setPool(config.balPool[i][0], config.balPool[i][1], config.balPool[i][2], {from: config.ULOwner})
     }
   }
+
+  if(config.curveSetup) {
+    const curveDex = await IDex.at("0xdABCC7b3ba13af3AC02C4FBe4e964ac56ac76C19");
+    for (i=0;i<config.curveSetup.length;i++) {
+      await curveDex.pairSetup(config.curveSetup[i][0], config.curveSetup[i][1], config.curveSetup[i][2], config.curveSetup[i][3], {from: config.ULOwner})
+    }
+  }
   
   if (config.existingVaultAddress){
     const vaultAsUpgradable = await IUpgradeableStrategy.at(config.existingVaultAddress);

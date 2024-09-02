@@ -6,22 +6,23 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const Strategy = artifacts.require("PenpieStrategyMainnet_weETHs2612");
+const Strategy = artifacts.require("PenpieStrategyMainnet_ETHx2612");
 
-//This test was developed at blockNumber 20627000
+//This test was developed at blockNumber 20661000
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Penpie weETHs-LP 26/12", function() {
+describe("Mainnet Penpie ETHx-LP 26/12", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x96977d15ee849bcbB23Ea88F0517e1e4fAad81D4";
+  let underlyingWhale = "0x20EADfcaf91BD98674FF8fc341D148E1731576A4";
   let pendle = "0x808507121B80c02388fAd14726482e061B8da827";
   let weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-  let weeths = "0x917ceE801a67f933F2e6b33fC0cD1ED2d5909D88";
+  let ethx = "0xA35b1B31Ce002FBF2058D22F30f95D405200A15b";
+  let wsteth = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0";
 
   // parties in the protocol
   let governance;
@@ -36,7 +37,7 @@ describe("Mainnet Penpie weETHs-LP 26/12", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0x40789E8536C668c6A249aF61c81b9dfaC3EB8F32");
+    underlying = await IERC20.at("0xFf262396f2A35Cd7Aa24b7255E7d3f45f057Cdba");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -70,10 +71,14 @@ describe("Mainnet Penpie weETHs-LP 26/12", function() {
       "governance": governance,
       "liquidation": [
         {"uniV3": [pendle, weth]},
-        {"curve": [weth, weeths]},
+        {"balancer": [weth, wsteth, ethx]},
       ],
       "uniV3Fee": [
         [pendle, weth, 3000],
+      ],
+      "balPool": [
+        [weth, wsteth, "0x93d199263632a4ef4bb438f1feb99e57b4b5f0bd0000000000000000000005c2"],        
+        [wsteth, ethx, "0xb91159aa527d4769cb9faf3e4adb760c7e8c8ea700000000000000000000067c"],        
       ],
       "ULOwner": addresses.ULOwner
     });
