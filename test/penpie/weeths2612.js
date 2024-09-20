@@ -8,7 +8,7 @@ const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol
 
 const Strategy = artifacts.require("PenpieStrategyMainnet_weETHs2612");
 
-//This test was developed at blockNumber 20619500
+//This test was developed at blockNumber 20626320
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Mainnet Penpie weETHs-LP 26/12", function() {
@@ -69,12 +69,12 @@ describe("Mainnet Penpie weETHs-LP 26/12", function() {
       "underlying": underlying,
       "governance": governance,
       "liquidation": [
-        {"uniV3": [pendle, weth]},
-        {"curve": [weth, weeths]},
+        // {"uniV3": [pendle, weth]},
+        // {"curve": [weth, weeths]},
       ],
-      "uniV3Fee": [
-        [pendle, weth, 3000],
-      ],
+      // "uniV3Fee": [
+      //   [pendle, weth, 3000],
+      // ],
       "ULOwner": addresses.ULOwner
     });
 

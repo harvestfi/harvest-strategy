@@ -10,8 +10,6 @@ import "../../base/interface/notional/IPrimeToken.sol";
 import "../../base/interface/notional/INProxy.sol";
 import "../../base/interface/weth/IWETH.sol";
 
-import "hardhat/console.sol";
-
 contract NotionalStrategy is BaseUpgradeableStrategy {
 
   using SafeMath for uint256;
@@ -112,7 +110,6 @@ contract NotionalStrategy is BaseUpgradeableStrategy {
     }
 
     address _depositToken = IPrimeToken(underlying()).asset();
-    console.log(IPrimeToken(underlying()).asset());
     if (_depositToken != _rewardToken) {
       IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
       IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
