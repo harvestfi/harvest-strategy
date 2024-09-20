@@ -69,12 +69,12 @@ describe("Mainnet Penpie weETHs-LP 26/12", function() {
       "underlying": underlying,
       "governance": governance,
       "liquidation": [
-        {"uniV3": [pendle, weth]},
-        {"curve": [weth, weeths]},
+        // {"uniV3": [pendle, weth]},
+        // {"curve": [weth, weeths]},
       ],
-      "uniV3Fee": [
-        [pendle, weth, 3000],
-      ],
+      // "uniV3Fee": [
+      //   [pendle, weth, 3000],
+      // ],
       "ULOwner": addresses.ULOwner
     });
 
