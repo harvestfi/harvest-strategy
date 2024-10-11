@@ -25,7 +25,7 @@ contract FluidLendStrategy is BaseUpgradeableStrategy {
   // this would be reset on each upgrade
   address[] public rewardTokens;
 
-  constructor() public BaseUpgradeableStrategy() {
+  constructor() BaseUpgradeableStrategy() {
     assert(_FTOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.fToken")) - 1));
     assert(_STORED_SUPPLIED_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.storedSupplied")) - 1));
     assert(_PENDING_FEE_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.pendingFee")) - 1));
