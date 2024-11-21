@@ -27,7 +27,8 @@ contract ConvexStrategyMainnet_thUSD_3CRV is ConvexStrategy {
       2, //depositArrayPosition. Find deposit transaction -> input params
       curveDeposit, // deposit contract: usually underlying. Find deposit transaction -> interacted contract
       4, //nTokens -> total number of deposit tokens
-      true //metaPool -> if LP token address == pool address (at curve)
+      true, //metaPool -> if LP token address == pool address (at curve)
+      false
     );
     rewardTokens = [crv, cvx];
   }

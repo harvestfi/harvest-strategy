@@ -26,7 +26,8 @@ contract ConvexStrategyMainnet_crvUSD_USDC is ConvexStrategy {
       0, //depositArrayPosition. Find deposit transaction -> input params
       underlying, // deposit contract: usually underlying. Find deposit transaction -> interacted contract
       2, //nTokens -> total number of deposit tokens
-      false //metaPool -> if LP token address == pool address (at curve)
+      false, //metaPool -> if LP token address == pool address (at curve)
+      false
     );
     rewardTokens = [crv, cvx];
   }

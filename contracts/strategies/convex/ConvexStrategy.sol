@@ -14,6 +14,7 @@ import "../../base/interface/curve/ICurveDeposit_3token.sol";
 import "../../base/interface/curve/ICurveDeposit_3token_meta.sol";
 import "../../base/interface/curve/ICurveDeposit_4token.sol";
 import "../../base/interface/curve/ICurveDeposit_4token_meta.sol";
+import "../../base/interface/curve/ICurveDeposit_NG.sol";
 import "../../base/interface/weth/IWETH.sol";
 
 contract ConvexStrategy is BaseUpgradeableStrategy {
@@ -32,6 +33,7 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
   bytes32 internal constant _CURVE_DEPOSIT_SLOT = 0xb306bb7adebd5a22f5e4cdf1efa00bc5f62d4f5554ef9d62c1b16327cd3ab5f9;
   bytes32 internal constant _NTOKENS_SLOT = 0xbb60b35bae256d3c1378ff05e8d7bee588cd800739c720a107471dfa218f74c1;
   bytes32 internal constant _METAPOOL_SLOT = 0x567ad8b67c826974a167f1a361acbef5639a3e7e02e99edbc648a84b0923d5b7;
+  bytes32 internal constant _NG_SLOT = 0xcd6a0b148d19dba2b2780e77ba620dd79534ef7aeb84c51a65b7d73c6a83da27;
 
   address[] public rewardTokens;
 
@@ -42,6 +44,7 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     assert(_CURVE_DEPOSIT_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.curveDeposit")) - 1));
     assert(_NTOKENS_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nTokens")) - 1));
     assert(_METAPOOL_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.metaPool")) - 1));
+    assert(_NG_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.NG")) - 1));
   }
 
   function initializeBaseStrategy(
@@ -54,7 +57,8 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     uint256 _depositArrayPosition,
     address _curveDeposit,
     uint256 _nTokens,
-    bool _metaPool
+    bool _metaPool,
+    bool _useNG
   ) public initializer {
 
     BaseUpgradeableStrategy.initialize(
@@ -77,6 +81,7 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     _setCurveDeposit(_curveDeposit);
     _setNTokens(_nTokens);
     _setMetaPool(_metaPool);
+    _setNG(_useNG);
   }
 
   function depositArbCheck() public pure returns(bool) {
@@ -197,13 +202,19 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     // we can accept 0 as minimum, this will be called only by trusted roles
     uint256 minimum = 0;
     if (nTokens() == 2) {
-      uint256[2] memory depositArray;
-      depositArray[depositArrayPosition()] = tokenBalance;
-      if (_depositToken == weth){
-        IWETH(weth).withdraw(tokenBalance);
-        ICurveDeposit_2token(_curveDeposit).add_liquidity{value:tokenBalance}(depositArray, minimum);
+      if (NG()) {
+        uint256[] memory depositArray = new uint256[](2);
+        depositArray[depositArrayPosition()] = tokenBalance;
+        ICurveDeposit_NG(_curveDeposit).add_liquidity(depositArray, minimum);
       } else {
-        ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
+        uint256[2] memory depositArray;
+        depositArray[depositArrayPosition()] = tokenBalance;
+        if (_depositToken == weth){
+          IWETH(weth).withdraw(tokenBalance);
+          ICurveDeposit_2token(_curveDeposit).add_liquidity{value:tokenBalance}(depositArray, minimum);
+        } else {
+          ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
+        }
       }
     } else if (nTokens() == 3) {
       uint256[3] memory depositArray;
@@ -364,6 +375,13 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     return getBoolean(_METAPOOL_SLOT);
   }
 
+  function _setNG(bool _value) internal {
+    setBoolean(_NG_SLOT, _value);
+  }
+
+  function NG() public view returns (bool) {
+    return getBoolean(_NG_SLOT);
+  }
 
   function finalizeUpgrade() external onlyGovernance {
     _finalizeUpgrade();
