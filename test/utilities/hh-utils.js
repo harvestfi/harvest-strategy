@@ -26,6 +26,13 @@ async function impersonates(targetAccounts){
 
 async function setupCoreProtocol(config) {
   if(config.existingVaultAddress != null){
+    if (config.upgradeVault) {
+      const vaultUpgradable = await IUpgradeableStrategy.at(config.existingVaultAddress);
+      await vaultUpgradable.scheduleUpgrade(addresses.VaultImplementationV2, { from: config.governance });
+      console.log("Upgrade scheduled. Waiting...");
+      await Utils.waitHours(13);
+      await vaultUpgradable.upgrade({ from: config.governance });
+    }
     vault = await IVault.at(config.existingVaultAddress);
     console.log("Fetching Vault at: ", vault.address);
   } else {

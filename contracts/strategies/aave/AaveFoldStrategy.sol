@@ -38,6 +38,7 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
 
   // this would be reset on each upgrade
   address[] public rewardTokens;
+  mapping(address => bool) public isAToken;
 
   constructor() BaseUpgradeableStrategy() {
     assert(_ATOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.aToken")) - 1));
@@ -127,7 +128,7 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
   function _handleFee() internal {
     _accrueFee();
     uint256 fee = pendingFee();
-    if (fee > 0) {
+    if (fee > 100) {
       uint256 balanceIncrease = fee.mul(feeDenominator()).div(totalFeeNumerator());
       _redeem(fee);
       address _underlying = underlying();
@@ -264,11 +265,22 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
         _redeem(rewardBalance);
         token = underlying();
       } else {
-        rewardBalance = IERC20(token).balanceOf(address(this));
+        if (isAToken[token]) {
+          rewardBalance = IERC20(token).balanceOf(address(this));
+          if (rewardBalance > 0) {
+            address _pool = IAToken(token).POOL();
+            token = IAToken(token).UNDERLYING_ASSET_ADDRESS();
+            IPool(_pool).withdraw(token, rewardBalance, address(this));
+          }
+        } else {
+          rewardBalance = IERC20(token).balanceOf(address(this));
+        }
       }
+
       if (rewardBalance == 0) {
         continue;
       }
+
       if (token != _rewardToken){
         IERC20(token).safeApprove(_universalLiquidator, 0);
         IERC20(token).safeApprove(_universalLiquidator, rewardBalance);
@@ -345,12 +357,12 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
     uint256 supplied = IAToken(_aToken).balanceOf(address(this));
     // amount we borrowed
     uint256 borrowed = IVariableDebtToken(debtToken()).balanceOf(address(this));
-    uint256 balance = supplied.sub(borrowed);
+    uint256 balance = supplied.sub(borrowed).sub(pendingFee().add(1));
 
     _redeemWithFlashloan(balance, 0);
     supplied = IAToken(_aToken).balanceOf(address(this));
-    if (supplied > 0) {
-      _redeem(type(uint).max);
+    if (supplied > pendingFee()) {
+      _redeem(supplied.sub(pendingFee().add(1)));
     }
   }
 
