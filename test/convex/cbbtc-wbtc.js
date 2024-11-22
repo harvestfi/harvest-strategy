@@ -42,7 +42,6 @@ describe("Mainnet Convex cbBTC-WBTC", function() {
     let etherGiver = accounts[9];
     // Give whale some ether to make sure the following actions are good
     await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
-    await web3.eth.sendTransaction({ from: etherGiver, to: addresses.ULOwner, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
