@@ -110,6 +110,20 @@ async function setupCoreProtocol(config) {
     }
   }
 
+  if(config.uniV3Fee) {
+    const uniV3Dex = await IDex.at("0xc1D0465FF243fEcE2856Eac534C16cf1C8fb1aBA");
+    for (i=0;i<config.uniV3Fee.length;i++) {
+      await uniV3Dex.setFee(config.uniV3Fee[i][0], config.uniV3Fee[i][1], config.uniV3Fee[i][2], {from: config.ULOwner})
+    }
+  }
+
+  if(config.curveSetup) {
+    const curveDex = await IDex.at("0xdABCC7b3ba13af3AC02C4FBe4e964ac56ac76C19");
+    for (i=0;i<config.curveSetup.length;i++) {
+      await curveDex.pairSetup(config.curveSetup[i][0], config.curveSetup[i][1], config.curveSetup[i][2], config.curveSetup[i][3], {from: config.ULOwner})
+    }
+  }
+
   // default arguments are storage and vault addresses
   config.strategyArgs = config.strategyArgs || [
     addresses.Storage,
