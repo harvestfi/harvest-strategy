@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import "./CompoundStrategy.sol";
 
-contract CompoundStrategyMainnet_WETH is CompoundStrategy {
+contract CompoundStrategyMainnet_wstETH is CompoundStrategy {
 
   constructor() {}
 
@@ -11,8 +11,8 @@ contract CompoundStrategyMainnet_WETH is CompoundStrategy {
     address _storage,
     address _vault
   ) public initializer {
-    address underlying = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    address market = address(0xA17581A9E3356d9A858b789D68B4d866e593aE94);
+    address underlying = address(0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0);
+    address market = address(0x3D0bb1ccaB520A66e607822fC55BC921738fAFE3);
     address rewards = address(0x1B0e765F6224C21223AeA2af16c1C46E38885a40);
     address comp = address(0xc00e94Cb662C3520282E6f5717214004A7f26888);
     CompoundStrategy.initializeBaseStrategy(

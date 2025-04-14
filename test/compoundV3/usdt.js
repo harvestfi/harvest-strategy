@@ -6,21 +6,19 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const Strategy = artifacts.require("CompoundStrategyMainnet_WETH");
+const Strategy = artifacts.require("CompoundStrategyMainnet_USDT");
 
-//This test was developed at blockNumber 21242150
+//This test was developed at blockNumber 21242264
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet CompoundV3 WETH", function() {
+describe("Mainnet CompoundV3 USDT", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0xc765faECA19B33483f2A105e7B02e309393A45B0";
-  let weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-  let comp = "0xc00e94Cb662C3520282E6f5717214004A7f26888";
+  let underlyingWhale = "0xEE9e590412DF55a606d30DE2DF43492d83b71893";
 
   // parties in the protocol
   let governance;
@@ -35,7 +33,7 @@ describe("Mainnet CompoundV3 WETH", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    underlying = await IERC20.at("0xdAC17F958D2ee523a2206206994597C13D831ec7");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -61,8 +59,7 @@ describe("Mainnet CompoundV3 WETH", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": "0xFE09e53A81Fe2808bc493ea64319109B5bAa573e",
-      "announceStrategy": true,
+      "existingVaultAddress": null,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,

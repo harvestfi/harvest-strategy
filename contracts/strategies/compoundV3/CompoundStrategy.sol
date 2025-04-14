@@ -20,10 +20,15 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   // additional storage slots (on top of BaseUpgradeableStrategy ones) are defined here
   bytes32 internal constant _MARKET_SLOT = 0x7e894854bb2aa938fcac0eb9954ddb51bd061fc228fb4e5b8e859d96c06bfaa0;
   bytes32 internal constant _STORED_SUPPLIED_SLOT = 0x280539da846b4989609abdccfea039bd1453e4f710c670b29b9eeaca0730c1a2;
+  bytes32 internal constant _PENDING_FEE_SLOT = 0x0af7af9f5ccfa82c3497f40c7c382677637aee27293a6243a22216b51481bd97;
+
+  // this would be reset on each upgrade
+  address[] public rewardTokens;
 
   constructor() BaseUpgradeableStrategy() {
     assert(_MARKET_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.market")) - 1));
     assert(_STORED_SUPPLIED_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.storedSupplied")) - 1));
+    assert(_PENDING_FEE_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.pendingFee")) - 1));
   }
 
   function initializeBaseStrategy(
@@ -58,13 +63,8 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
     return getUint256(_STORED_SUPPLIED_SLOT);
   }
 
-  function _updateStoredSupplied(bool feeClaimed) internal {
-    uint256 balance;
-    if (feeClaimed) {
-      balance = currentSupplied();
-    } else {
-      balance = currentSupplied().sub(pendingFee().mul(feeDenominator()).div(totalFeeNumerator()));
-    }
+  function _updateStoredSupplied() internal {
+    uint256 balance = currentSupplied();
     setUint256(_STORED_SUPPLIED_SLOT, balance);
   }
 
@@ -73,12 +73,32 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   }
 
   function pendingFee() public view returns (uint256) {
+    return getUint256(_PENDING_FEE_SLOT);
+  }
+
+  function _accrueFee() internal {
     uint256 fee;
     if (currentSupplied() > storedSupplied()) {
-        uint256 balanceIncrease = currentSupplied().sub(storedSupplied());
-        fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator());
+      uint256 balanceIncrease = currentSupplied().sub(storedSupplied());
+      fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator());
     }
-    return fee;
+    setUint256(_PENDING_FEE_SLOT, pendingFee().add(fee));
+    _updateStoredSupplied();
+  }
+
+  function _handleFee() internal {
+    _accrueFee();
+    uint256 fee = pendingFee();
+    if (fee > 100) {
+      uint256 balanceIncrease = fee.mul(feeDenominator()).div(totalFeeNumerator());
+      _withdrawUnderlyingFromPool(fee);
+      address _underlying = underlying();
+      if (IERC20(_underlying).balanceOf(address(this)) < fee) {
+        balanceIncrease = IERC20(_underlying).balanceOf(address(this)).mul(feeDenominator()).div(totalFeeNumerator());
+      }
+      _notifyProfitInRewardToken(_underlying, balanceIncrease);
+      setUint256(_PENDING_FEE_SLOT, 0);
+    }
   }
 
   function depositArbCheck() public pure returns(bool) {
@@ -86,10 +106,12 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   }
 
   function _emergencyExitRewardPool() internal {
+    _accrueFee();
     uint256 stakedBalance = currentSupplied();
     if (stakedBalance != 0) {
-        _withdrawUnderlyingFromPool(stakedBalance);
+      _withdrawUnderlyingFromPool(stakedBalance);
     }
+    _updateStoredSupplied();
   }
 
   function _withdrawUnderlyingFromPool(uint256 amount) internal {
@@ -111,7 +133,6 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
     if(IERC20(underlying()).balanceOf(address(this)) > 0) {
       _enterRewardPool();
     }
-    _updateStoredSupplied(true);
   }
 
   /*
@@ -146,24 +167,22 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
       return;
     }
     address _rewardToken = rewardToken();
-    uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
-    uint256 _pendingFee = pendingFee();
-    uint256 convertedFee;
-    if (_pendingFee > 0) {
-      address _underlying = underlying();
-      uint256 underlyingBalance = IERC20(_underlying).balanceOf(address(this));
-      address _universalLiquidator = universalLiquidator();
-      if (underlyingBalance < _pendingFee) {
-        _withdrawUnderlyingFromPool(_pendingFee.sub(underlyingBalance));
+    address _universalLiquidator = universalLiquidator();
+    for(uint256 i = 0; i < rewardTokens.length; i++){
+      address token = rewardTokens[i];
+      uint256 rewardBalance = IERC20(token).balanceOf(address(this));
+      if (rewardBalance == 0) {
+        continue;
       }
-      IERC20(_underlying).safeApprove(_universalLiquidator, 0);
-      IERC20(_underlying).safeApprove(_universalLiquidator, _pendingFee);
-      IUniversalLiquidator(_universalLiquidator).swap(_underlying, _rewardToken, _pendingFee, 1, address(this));
-      uint256 rewardAfter = IERC20(_rewardToken).balanceOf(address(this));
-      convertedFee = rewardAfter.sub(rewardBalance);
+      if (token != _rewardToken){
+        IERC20(token).safeApprove(_universalLiquidator, 0);
+        IERC20(token).safeApprove(_universalLiquidator, rewardBalance);
+        IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, rewardBalance, 1, address(this));
+      }
     }
 
-    _notifyProfitInRewardToken(_rewardToken, rewardBalance.add(convertedFee.mul(feeDenominator()).div(totalFeeNumerator())));
+    uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
+    _notifyProfitInRewardToken(_rewardToken, rewardBalance);
     uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
     if (remainingRewardBalance == 0) {
@@ -172,7 +191,6 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
 
     address _underlying = underlying();
     if (_underlying != _rewardToken) {
-      address _universalLiquidator = universalLiquidator();
       IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
       IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
       IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _underlying, remainingRewardBalance, 1, address(this));
@@ -183,18 +201,20 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   *   Withdraws all the asset to the vault
   */
   function withdrawAllToVault() public restricted {
+    _handleFee();
     _claimReward();
     _liquidateReward();
-    _withdrawUnderlyingFromPool(currentSupplied());
+    _withdrawUnderlyingFromPool(currentSupplied().sub(pendingFee().add(1)));
     address underlying_ = underlying();
     IERC20(underlying_).safeTransfer(vault(), IERC20(underlying_).balanceOf(address(this)));
-    _updateStoredSupplied(true);
+    _updateStoredSupplied();
   }
 
   /*
   *   Withdraws all the asset to the vault
   */
   function withdrawToVault(uint256 _amount) public restricted {
+    _accrueFee();
     // Typically there wouldn't be any amount here
     // however, it is possible because of the emergencyExit
     address underlying_ = underlying();
@@ -208,7 +228,7 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
       _withdrawUnderlyingFromPool(toWithdraw);
     }
     IERC20(underlying_).safeTransfer(vault(), _amount);
-    _updateStoredSupplied(false);
+    _updateStoredSupplied();
   }
 
   /*
@@ -224,7 +244,7 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
     // The second part is needed because there is the emergency exit mechanism
     // which would break the assumption that all the funds are always inside of the reward pool
     return IERC20(underlying()).balanceOf(address(this))
-    .add(currentSupplied())
+    .add(storedSupplied())
     .sub(pendingFee());
   }
 
@@ -247,9 +267,11 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
   *   when the investing is being paused by governance.
   */
   function doHardWork() external onlyNotPausedInvesting restricted {
+    _handleFee();
     _claimReward();
     _liquidateReward();
     _investAllUnderlying();
+    _updateStoredSupplied();
   }
 
   /**
@@ -270,6 +292,6 @@ contract CompoundStrategy is BaseUpgradeableStrategy {
 
   function finalizeUpgrade() external onlyGovernance {
     _finalizeUpgrade();
-    _updateStoredSupplied(true);
+    _updateStoredSupplied();
   }
 }
