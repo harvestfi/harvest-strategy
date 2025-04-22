@@ -14,7 +14,7 @@ const IERC20 = artifacts.require(
 
 const Strategy = artifacts.require("ConvexStrategyMainnet_WETH_CJPY");
 
-//This test was developed at blockNumber 22321000
+//This test was developed at blockNumber 22288200
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Mainnet Convex WETH-CJPY", function () {
