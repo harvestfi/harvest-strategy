@@ -14,7 +14,7 @@ const IERC20 = artifacts.require(
 
 const Strategy = artifacts.require("ConvexStrategyMainnet_reUSD_scrvUSD");
 
-//This test was developed at blockNumber 22312620
+//This test was developed at blockNumber 22288200
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Mainnet Convex reUSD-scrvUSD", function () {
