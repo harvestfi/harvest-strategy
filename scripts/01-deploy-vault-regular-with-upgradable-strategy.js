@@ -31,6 +31,8 @@ async function main() {
   console.log(`${id}: ${JSON.stringify(deployment, null, 2)}`);
   console.log("======");
 
+  await hre.run("verify:verify", {address: impl.creates}); 
+
   console.log("Deployment complete. Add the JSON above to `harvest-api` (https://github.com/harvest-finance/harvest-api/blob/master/data/mainnet/addresses.json) repo and add entries to `tokens.js` and `pools.js`.");
 }
 
