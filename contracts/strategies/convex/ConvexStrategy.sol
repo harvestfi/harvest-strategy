@@ -10,6 +10,7 @@ import "../../base/interface/convex/IBooster.sol";
 import "../../base/interface/convex/IBaseRewardPool.sol";
 import "../../base/interface/curve/ICurveDeposit_2token.sol";
 import "../../base/interface/curve/ICurveDeposit_2token_new.sol";
+import "../../base/interface/curve/ICurveDeposit_2token_stable.sol";
 import "../../base/interface/curve/ICurveDeposit_3token.sol";
 import "../../base/interface/curve/ICurveDeposit_3token_meta.sol";
 import "../../base/interface/curve/ICurveDeposit_4token.sol";
@@ -189,22 +190,37 @@ contract ConvexStrategy is BaseUpgradeableStrategy {
     address _curveDeposit = curveDeposit();
 
     uint256 tokenBalance = IERC20(_depositToken).balanceOf(address(this));
+
+    //updated for CJPY token contract which is involving <require(amount > 0, "Amount is zero.");>
     if (_depositToken != weth) {
-      IERC20(_depositToken).safeApprove(_curveDeposit, 0);
-      IERC20(_depositToken).safeApprove(_curveDeposit, tokenBalance);
+      IERC20(_depositToken).safeApprove(_curveDeposit, 1);
+      if(tokenBalance > 1) {
+        IERC20(_depositToken).safeIncreaseAllowance(_curveDeposit, tokenBalance - 1);
+      }
     }
 
     // we can accept 0 as minimum, this will be called only by trusted roles
     uint256 minimum = 0;
     if (nTokens() == 2) {
-      uint256[2] memory depositArray;
-      depositArray[depositArrayPosition()] = tokenBalance;
-      if (_depositToken == weth){
-        IWETH(weth).withdraw(tokenBalance);
-        ICurveDeposit_2token(_curveDeposit).add_liquidity{value:tokenBalance}(depositArray, minimum);
-      } else {
-        ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
-      }
+        if(metaPool()) {
+          uint256[] memory depositArray = new uint256[](2);
+          depositArray[depositArrayPosition()] = tokenBalance;
+          if (_depositToken == weth){
+            IWETH(weth).withdraw(tokenBalance);
+            ICurveDeposit_2token_stable(_curveDeposit).add_liquidity{value:tokenBalance}(depositArray, minimum);
+          } else {
+            ICurveDeposit_2token_stable(_curveDeposit).add_liquidity(depositArray, minimum);
+          }
+        } else {
+            uint256[2] memory depositArray;
+            depositArray[depositArrayPosition()] = tokenBalance;
+            if (_depositToken == weth){
+                IWETH(weth).withdraw(tokenBalance);
+                ICurveDeposit_2token(_curveDeposit).add_liquidity{value:tokenBalance}(depositArray, minimum);
+            } else {
+                ICurveDeposit_2token(_curveDeposit).add_liquidity(depositArray, minimum);
+            }
+        }
     } else if (nTokens() == 3) {
       uint256[3] memory depositArray;
       depositArray[depositArrayPosition()] = tokenBalance;
