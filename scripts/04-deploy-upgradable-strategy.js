@@ -8,12 +8,14 @@ async function main() {
   prompt.start();
   const addresses = require("../test/test-config.js");
 
-  const {id, vaultAddr, strategyName} = await prompt.get(['vaultAddr', 'strategyName']);
+  const {vaultAddr, strategyName} = await prompt.get(['vaultAddr', 'strategyName']);
 
   const StrategyImpl = artifacts.require(strategyName);
   const impl = await type2Transaction(StrategyImpl.new);
 
   console.log("Implementation deployed at:", impl.creates);
+
+  await hre.run("verify:verify", {address: impl.creates});
 
   const StrategyProxy = artifacts.require('StrategyProxy');
   const proxy = await type2Transaction(StrategyProxy.new, impl.creates);

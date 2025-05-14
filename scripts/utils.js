@@ -1,6 +1,6 @@
 async function getFeeData() {
   const feeData = await ethers.provider.getFeeData();
-  feeData.maxPriorityFeePerGas = 2e9;
+  feeData.maxPriorityFeePerGas = 0.2e9;
   if (feeData.maxFeePerGas > 50e9) {
     feeData.maxFeePerGas = 50e9;
   }
