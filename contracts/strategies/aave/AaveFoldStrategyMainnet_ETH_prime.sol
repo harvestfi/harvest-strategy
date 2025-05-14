@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import "./AaveFoldStrategy.sol";
 
-contract AaveFoldStrategyMainnet_ETH_lido is AaveFoldStrategy {
+contract AaveFoldStrategyMainnet_ETH_prime is AaveFoldStrategy {
 
   constructor() {}
 
