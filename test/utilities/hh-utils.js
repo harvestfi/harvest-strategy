@@ -163,6 +163,16 @@ async function setupCoreProtocol(config) {
 
   console.log("Strategy Deployed: ", strategy.address);
 
+  if (config.fixStrategy) {
+    const fixStrategy = await config.fixStrategyArtifact.new();
+    const strategyAsUpgradable = await IUpgradeableStrategy.at(await vault.strategy());
+    await strategyAsUpgradable.scheduleUpgrade(fixStrategy.address, { from: config.governance });
+    console.log("Upgrade scheduled. Waiting...");
+    await Utils.waitHours(13);
+    await strategyAsUpgradable.upgrade({ from: config.governance });
+    console.log("Strategy upgrade completed.");
+  }
+
   if (config.announceStrategy === true) {
     // Announce switch, time pass, switch to strategy
     await vault.announceStrategyUpdate(strategy.address, { from: config.governance });
