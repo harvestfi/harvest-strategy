@@ -34,4 +34,6 @@ interface IStrategy {
      *          writeable functions to get the # of claimable reward tokens
      */
     function getRewardPoolValues() external returns (uint256[] memory);
+
+    function morphoClaim(address _distr, bytes calldata _txData) external;
 }

@@ -13,6 +13,7 @@ module.exports = {
   "VaultImplementationV1": "0x9B3bE0cc5dD26fd0254088d03D8206792715588B",
   "VaultImplementationV2": "0x0de5F3a958F8e927c5B27D202d12B607e213D08c",
   "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  "RewardPrePayMorpho": "0x15568A3361a2501181daC9309772cae14156CF9E",
   "Factory": {
     "MegaFactory": "0xE1EC9151Eb8D9a3451B8F623CE8b62632a6D4f4D",
     "RegularVaultFactory": "0x3Bb28f8E936c48499A4BeBbE906E05e8Eae2Bef8",

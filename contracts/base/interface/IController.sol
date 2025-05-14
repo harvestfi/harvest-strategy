@@ -130,4 +130,6 @@ interface IController {
     function tempNextImplementationDelay() external view returns (uint256);
 
     function tempNextImplementationDelayTimestamp() external view returns (uint256);
+
+    function hardWorkers(address _worker) external view returns (bool);
 }
