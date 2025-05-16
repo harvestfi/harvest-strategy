@@ -6,7 +6,7 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const Strategy = artifacts.require("AaveFoldStrategyMainnet_USDC_lido");
+const Strategy = artifacts.require("AaveFoldStrategyMainnet_USDC_prime");
 
 //This test was developed at blockNumber 21242264
 
