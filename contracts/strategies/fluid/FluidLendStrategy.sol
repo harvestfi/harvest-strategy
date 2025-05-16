@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity 0.8.26;
-pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -8,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/IERC4626.sol";
+import "../../base/interface/fluid/IFluidMerkleDistributor.sol";
 
 contract FluidLendStrategy is BaseUpgradeableStrategy {
 
@@ -187,6 +187,25 @@ contract FluidLendStrategy is BaseUpgradeableStrategy {
     rewardTokens.push(_token);
   }
 
+  function claimReward(
+    uint256 _amount,
+    uint8 _positoinType,
+    bytes32 _positionId,
+    uint256 _cycle,
+    bytes32[] calldata _merkleProof,
+    bytes memory _metadata
+  ) external {
+    IFluidMerkleDistributor(rewardPool()).claim(
+      address(this),
+      _amount,
+      _positoinType,
+      _positionId,
+      _cycle,
+      _merkleProof,
+      _metadata
+    );
+  }
+
   function _liquidateRewards() internal {
     if (!sell()) {
       // Profits can be disabled for possible simplified and rapid exit
@@ -194,6 +213,32 @@ contract FluidLendStrategy is BaseUpgradeableStrategy {
       return;
     }
     _handleFee();
+
+    address _rewardToken = rewardToken();
+    address _universalLiquidator = universalLiquidator();
+    for (uint256 i; i < rewardTokens.length; i++) {
+      address token = rewardTokens[i];
+      uint256 balance = IERC20(token).balanceOf(address(this));
+      if (balance > 0 && token != _rewardToken){
+        IERC20(token).safeApprove(_universalLiquidator, 0);
+        IERC20(token).safeApprove(_universalLiquidator, balance);
+        IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, balance, 1, address(this));
+      }
+    }
+    uint256 rewardBalance = IERC20(_rewardToken).balanceOf(address(this));
+    _notifyProfitInRewardToken(_rewardToken, rewardBalance);
+    uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
+
+    if (remainingRewardBalance == 0) {
+      return;
+    }
+  
+    address _underlying = underlying();
+    if (_underlying != _rewardToken) {
+      IERC20(_rewardToken).safeApprove(_universalLiquidator, 0);
+      IERC20(_rewardToken).safeApprove(_universalLiquidator, remainingRewardBalance);
+      IUniversalLiquidator(_universalLiquidator).swap(_rewardToken, _underlying, remainingRewardBalance, 1, address(this));
+    }
   }
 
   /**
@@ -238,6 +283,11 @@ contract FluidLendStrategy is BaseUpgradeableStrategy {
   }
 
   function finalizeUpgrade() external onlyGovernance {
+    address fluid = address(0x6f40d4A6237C257fff2dB00FA0510DeEECd303eb);
+    address fluidMerkle = address(0x7060FE0Dd3E31be01EFAc6B28C8D38018fD163B0);
+    rewardTokens.push(fluid);
+    _setRewardToken(fluid);
+    _setRewardPool(fluidMerkle);
     _finalizeUpgrade();
   }
 
