@@ -55,4 +55,6 @@ interface IVault {
      * This should be callable only by the controller (by the hard worker) or by governance
      */
     function doHardWork() external;
+
+    function decimals() external view returns (uint8);
 }
