@@ -115,7 +115,7 @@ contract FluidLendStrategy is BaseUpgradeableStrategy {
   function _investAllUnderlying() internal onlyNotPausedInvesting {
     address _underlying = underlying();
     uint256 underlyingBalance = IERC20(_underlying).balanceOf(address(this));
-    if (underlyingBalance > 1e1) {
+    if (underlyingBalance > 1e2) {
       _supply(underlyingBalance);
     }
   }
