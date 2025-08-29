@@ -128,7 +128,7 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
   function _handleFee() internal {
     _accrueFee();
     uint256 fee = pendingFee();
-    if (fee > 1e4) {
+    if (fee > 1e2) {
       _redeem(fee);
       address _underlying = underlying();
       fee = Math.min(fee, IERC20(_underlying).balanceOf(address(this)));
@@ -257,32 +257,32 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
     address _universalLiquidator = universalLiquidator();
     for(uint256 i = 0; i < rewardTokens.length; i++){
       address token = rewardTokens[i];
-      uint256 rewardBalance;
+      uint256 balance;
       if (token == aToken()) {
-        rewardBalance = aTokenAmount;
-        _redeem(rewardBalance);
+        balance = aTokenAmount;
+        _redeem(balance);
         token = underlying();
       } else {
         if (isAToken[token]) {
-          rewardBalance = IERC20(token).balanceOf(address(this));
-          if (rewardBalance > 0) {
+          balance = IERC20(token).balanceOf(address(this));
+          if (balance > 0) {
             address _pool = IAToken(token).POOL();
             token = IAToken(token).UNDERLYING_ASSET_ADDRESS();
-            IPool(_pool).withdraw(token, rewardBalance, address(this));
+            IPool(_pool).withdraw(token, balance, address(this));
           }
         } else {
-          rewardBalance = IERC20(token).balanceOf(address(this));
+          balance = IERC20(token).balanceOf(address(this));
         }
       }
 
-      if (rewardBalance == 0) {
+      if (balance == 0) {
         continue;
       }
 
       if (token != _rewardToken){
         IERC20(token).safeApprove(_universalLiquidator, 0);
-        IERC20(token).safeApprove(_universalLiquidator, rewardBalance);
-        IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, rewardBalance, 1, address(this));
+        IERC20(token).safeApprove(_universalLiquidator, balance);
+        IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, balance, 1, address(this));
       }
     }
 
@@ -312,7 +312,7 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
   }
 
   function _supply(uint256 amountUnderlying) internal {
-    if (amountUnderlying == 0){
+    if (amountUnderlying < 1e2){
       return;
     }
     address _underlying = underlying();
@@ -397,7 +397,7 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
     }
   }
 
-  function _redeemWithFlashloan(uint256 amount, uint256 borrowTargetFactorNumerator) internal {
+  function _redeemWithFlashloan(uint256 amount, uint256 _borrowTargetFactorNumerator) internal {
     // amount we supplied
     uint256 supplied = IAToken(aToken()).balanceOf(address(this));
     // amount we borrowed
@@ -406,7 +406,7 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
     {
         uint256 oldBalance = supplied.sub(borrowed);
         uint256 newBalance = oldBalance.sub(amount);
-        newBorrowTarget = newBalance.mul(borrowTargetFactorNumerator).div(factorDenominator().sub(borrowTargetFactorNumerator));
+        newBorrowTarget = newBalance.mul(_borrowTargetFactorNumerator).div(factorDenominator().sub(_borrowTargetFactorNumerator));
     }
     uint256 borrowDiff;
     if (borrowed < newBorrowTarget) {
@@ -418,7 +418,7 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
     uint256 balancerBalance = IERC20(_underlying).balanceOf(bVault);
 
     if (borrowDiff > balancerBalance) {
-      _redeemNoFlash(amount, supplied, borrowed, factorDenominator(), borrowTargetFactorNumerator);
+      _redeemNoFlash(amount, supplied, borrowed, factorDenominator(), _borrowTargetFactorNumerator);
     } else {
       address[] memory tokens = new address[](1);
       uint256[] memory amounts = new uint256[](1);
@@ -485,8 +485,8 @@ contract AaveFoldStrategy is BaseUpgradeableStrategy {
       uint256 toRedeem = Math.min(supplied.sub(requiredCollateral), amount.add(toRepay));
       _redeem(toRedeem);
       // now we can repay our borrowed amount
-      uint256 underlyingBalance = IERC20(_underlying).balanceOf(address(this));
-      _repay(Math.min(toRepay, underlyingBalance));
+      uint256 _underlyingBalance = IERC20(_underlying).balanceOf(address(this));
+      _repay(Math.min(toRepay, _underlyingBalance));
       // update the parameters
       borrowed = IVariableDebtToken(debtToken()).balanceOf(address(this));
       supplied = IAToken(aToken()).balanceOf(address(this));
