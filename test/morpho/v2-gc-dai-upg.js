@@ -12,19 +12,19 @@ const IERC20 = artifacts.require("IERC20");
 const IRewardPrePay = artifacts.require("IRewardPrePay");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("MorphoVaultStrategyV2Mainnet_FX_USDC");
+const Strategy = artifacts.require("MorphoVaultStrategyV2Mainnet_GC_DAI");
 
 // Developed and tested at blockNumber 23246180
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Morpho f(x) USDC", function() {
+describe("Mainnet Morpho Gauntlet Core DAI - upgrade", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x072a452Eb96f4CD3458473754d23B86eEe4E8bDf";
+  let underlyingWhale = "0xF780E325E54a1457Ae27465C80B81f41d4B13B4e";
   let morphoWhale = "0x72b23AeBbD4aBfc1cEA755686710E74c93696Fae";
   let morpho = "0x58D97B57BB95320F9a05dC918Aef65434969c2B2";
   let morphoToken;
@@ -47,7 +47,7 @@ describe("Mainnet Morpho f(x) USDC", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    underlying = await IERC20.at("0x6B175474E89094C44Da98b954EedeAC495271d0F");
     console.log("Fetching Underlying at: ", underlying.address);
     morphoToken = await IERC20.at(morpho);
     fxnToken = await IERC20.at(fxn);
@@ -60,6 +60,7 @@ describe("Mainnet Morpho f(x) USDC", function() {
     await web3.eth.sendTransaction({ from: etherGiver, to: fxnWhale, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
+    console.log("Farmer balance: ", farmerBalance.toString());
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
   }
 
@@ -78,7 +79,8 @@ describe("Mainnet Morpho f(x) USDC", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
+      "existingVaultAddress": "0xab7fa2b2985bccfc13c6d86b1d5a17486ab1e04c",
+      "upgradeStrategy": true,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,

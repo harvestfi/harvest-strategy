@@ -56,6 +56,7 @@ contract BaseUpgradeableStrategyStorage is ControllableInit {
   bytes32 internal constant _NEXT_IMPLEMENTATION_DELAY_SLOT = 0x82b330ca72bcd6db11a26f10ce47ebcfe574a9c646bccbc6f1cd4478eae16b31;
 
   bytes32 internal constant _STRATEGIST_SLOT = 0x6a7b588c950d46e2de3db2f157e5e0e4f29054c8d60f17bf0c30352e223a458d;
+  bytes32 internal constant _INCENTIVES_SLOT = 0xef1528bd6b0f43c4ad46f8ba3f79dd3c19967fed33d44b75a620f289a9b2b63f;
 
   constructor() {
     assert(_UNDERLYING_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.underlying")) - 1));
@@ -75,6 +76,7 @@ contract BaseUpgradeableStrategyStorage is ControllableInit {
     assert(_NEXT_IMPLEMENTATION_DELAY_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.nextImplementationDelay")) - 1));
 
     assert(_STRATEGIST_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.strategist")) - 1));
+    assert(_INCENTIVES_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.incentives")) - 1));
   }
 
   function _setUnderlying(address _address) internal {
@@ -128,6 +130,14 @@ contract BaseUpgradeableStrategyStorage is ControllableInit {
 
   function strategist() public view returns (address) {
     return getAddress(_STRATEGIST_SLOT);
+  }
+
+  function _setIncentives(address _incentives) internal {
+    setAddress(_INCENTIVES_SLOT, _incentives);
+  }
+
+  function incentives() public view returns (address) {
+    return getAddress(_INCENTIVES_SLOT);
   }
 
   function _setVault(address _address) internal {

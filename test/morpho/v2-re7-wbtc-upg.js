@@ -12,19 +12,19 @@ const IERC20 = artifacts.require("IERC20");
 const IRewardPrePay = artifacts.require("IRewardPrePay");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("MorphoVaultStrategyV2Mainnet_FX_USDC");
+const Strategy = artifacts.require("MorphoVaultStrategyV2Mainnet_RE7_WBTC");
 
 // Developed and tested at blockNumber 23246180
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Morpho f(x) USDC", function() {
+describe("Mainnet Morpho RE7 WBTC - upgrade", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x072a452Eb96f4CD3458473754d23B86eEe4E8bDf";
+  let underlyingWhale = "0x7669eA2A0C0EDbcdD505246a991C3afDBbdfFace";
   let morphoWhale = "0x72b23AeBbD4aBfc1cEA755686710E74c93696Fae";
   let morpho = "0x58D97B57BB95320F9a05dC918Aef65434969c2B2";
   let morphoToken;
@@ -47,7 +47,7 @@ describe("Mainnet Morpho f(x) USDC", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    underlying = await IERC20.at("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599");
     console.log("Fetching Underlying at: ", underlying.address);
     morphoToken = await IERC20.at(morpho);
     fxnToken = await IERC20.at(fxn);
@@ -60,6 +60,7 @@ describe("Mainnet Morpho f(x) USDC", function() {
     await web3.eth.sendTransaction({ from: etherGiver, to: fxnWhale, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
+    console.log("Farmer balance: ", farmerBalance.toString());
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
   }
 
@@ -78,7 +79,8 @@ describe("Mainnet Morpho f(x) USDC", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
+      "existingVaultAddress": "0x5d9d25c7C457dD82fc8668FFC6B9746b674d4EcB",
+      "upgradeStrategy": true,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
@@ -86,6 +88,7 @@ describe("Mainnet Morpho f(x) USDC", function() {
       "ULOwner": addresses.ULOwner,
       "liquidation": [
         {"curve": [fxn, weth]},
+        {"uniV3": [weth, underlying.address]}
       ],
       "curveSetup": [
         [fxn, weth, "0xC15F285679a1Ef2d25F53D4CbD0265E1D02F2A92", [1, 0, 1, 2, 2]],

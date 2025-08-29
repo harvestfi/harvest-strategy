@@ -12,12 +12,12 @@ const IERC20 = artifacts.require("IERC20");
 const IRewardPrePay = artifacts.require("IRewardPrePay");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("MorphoVaultStrategyV2Mainnet_FX_USDC");
+const Strategy = artifacts.require("MorphoVaultStrategyV2Mainnet_FA_USDC");
 
 // Developed and tested at blockNumber 23246180
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Morpho f(x) USDC", function() {
+describe("Mainnet Morpho Falcon Core USDC - upgrade", function() {
   let accounts;
 
   // external contracts
@@ -60,6 +60,7 @@ describe("Mainnet Morpho f(x) USDC", function() {
     await web3.eth.sendTransaction({ from: etherGiver, to: fxnWhale, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
+    console.log("Farmer balance: ", farmerBalance.toString());
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
   }
 
@@ -78,7 +79,8 @@ describe("Mainnet Morpho f(x) USDC", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
+      "existingVaultAddress": "0x6D84799f874918A7762625805d68Cf3181d8d5f2",
+      "upgradeStrategy": true,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,

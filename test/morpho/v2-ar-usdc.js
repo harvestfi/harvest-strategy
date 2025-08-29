@@ -12,12 +12,12 @@ const IERC20 = artifacts.require("IERC20");
 const IRewardPrePay = artifacts.require("IRewardPrePay");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("MorphoVaultStrategyV2Mainnet_FX_USDC");
+const Strategy = artifacts.require("MorphoVaultStrategyV2Mainnet_AR_USDC");
 
 // Developed and tested at blockNumber 23246180
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Morpho f(x) USDC", function() {
+describe("Mainnet Morpho Aposto Resolv USDC", function() {
   let accounts;
 
   // external contracts

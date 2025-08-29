@@ -15,6 +15,7 @@ contract MorphoVaultStrategyV2Mainnet_9S_USDC is MorphoVaultStrategyV2 {
     address morphoVault = address(0x1E2aAaDcF528b9cC08F43d4fd7db488cE89F5741);
     address weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     address morpho = address(0x58D97B57BB95320F9a05dC918Aef65434969c2B2);
+    address fxn = address(0x365AccFCa291e7D3914637ABf1F7635dB165Bb09);
     MorphoVaultStrategyV2.initializeBaseStrategy(
       _storage,
       underlying,
@@ -23,6 +24,8 @@ contract MorphoVaultStrategyV2Mainnet_9S_USDC is MorphoVaultStrategyV2 {
       weth,
       address(0x15568A3361a2501181daC9309772cae14156CF9E)
     );
-    rewardTokens = [morpho];
+    rewardTokens = [morpho, fxn];
+    distributionTime[morpho] = 43200;
+    distributionTime[fxn] = 43200;
   }
 }

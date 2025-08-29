@@ -25,4 +25,13 @@ contract MorphoVaultStrategyV2Mainnet_HY_USDC is MorphoVaultStrategyV2 {
     );
     rewardTokens = [morpho];
   }
+
+  function finalizeUpgrade() external override onlyGovernance {
+    address morpho = address(0x58D97B57BB95320F9a05dC918Aef65434969c2B2);
+    address fxn = address(0x365AccFCa291e7D3914637ABf1F7635dB165Bb09);
+    rewardTokens = [morpho, fxn];
+    distributionTime[morpho] = 43200;
+    distributionTime[fxn] = 43200;
+    _finalizeUpgrade();
+  }
 }
