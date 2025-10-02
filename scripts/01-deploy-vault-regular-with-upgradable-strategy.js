@@ -8,6 +8,15 @@ function cleanupObj(d) {
   return d;
 }
 
+async function getFeeData() {
+  const feeData = await ethers.provider.getFeeData();
+  feeData.maxPriorityFeePerGas = 0.2e9;
+  if (feeData.maxFeePerGas > 50e9) {
+    feeData.maxFeePerGas = 50e9;
+  }
+  return feeData;
+}
+
 async function main() {
   console.log("Regular vault deployment with upgradable strategy.");
   console.log("> Prerequisite: deploy upgradable strategy implementation");
@@ -20,18 +29,18 @@ async function main() {
   const factory = await MegaFactory.at(addresses.Factory.MegaFactory);
 
   const StrategyImpl = artifacts.require(strategyName);
-  const impl = await type2Transaction(StrategyImpl.new);
+  const feeData = await getFeeData();
+  const impl = await StrategyImpl.new({ maxFeePerGas: feeData.maxFeePerGas, maxPriorityFeePerGas: feeData.maxPriorityFeePerGas });
+  console.log("Implementation deployed at:", impl.address);
 
-  console.log("Implementation deployed at:", impl.creates);
-
-  await type2Transaction(factory.createRegularVaultUsingUpgradableStrategy, id, underlying, impl.creates)
+  await type2Transaction(factory.createRegularVaultUsingUpgradableStrategy, id, underlying, impl.address)
 
   const deployment = cleanupObj(await factory.completedDeployments(id));
   console.log("======");
   console.log(`${id}: ${JSON.stringify(deployment, null, 2)}`);
   console.log("======");
 
-  await hre.run("verify:verify", {address: impl.creates}); 
+  await hre.run("verify:verify", {address: impl.address}); 
 
   console.log("Deployment complete. Add the JSON above to `harvest-api` (https://github.com/harvest-finance/harvest-api/blob/master/data/mainnet/addresses.json) repo and add entries to `tokens.js` and `pools.js`.");
 }

@@ -18,12 +18,12 @@ module.exports = {
       },
       allowUnlimitedContractSize: true,
       forking: {
-        url: "https://eth-mainnet.alchemyapi.io/v2/" + keys.alchemyKeyMainnet,
-        blockNumber: 20514630, // <-- edit here
+        url: "https://eth-mainnet.g.alchemy.com/v2/" + keys.alchemyKeyMainnet,
+        blockNumber: 23489150, // <-- edit here
       },
     },
     mainnet: {
-      url: "https://eth-mainnet.alchemyapi.io/v2/" + keys.alchemyKeyMainnet,
+      url: "https://eth-mainnet.g.alchemy.com/v2/" + keys.alchemyKeyMainnet,
       accounts: {
         mnemonic: keys.mnemonic,
       },
