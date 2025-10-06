@@ -1,8 +1,8 @@
-require("@nomiclabs/hardhat-etherscan");
 require("@nomiclabs/hardhat-truffle5");
 require("@nomiclabs/hardhat-web3");
 require("@nomiclabs/hardhat-ethers");
 require('hardhat-contract-sizer');
+require("@nomicfoundation/hardhat-verify");
 
 const keys = require('./dev-keys.json');
 
@@ -46,6 +46,9 @@ module.exports = {
   },
   etherscan: {
     apiKey: keys.etherscanAPI,
+  },
+  sourcify: {
+    enabled: true
   },
   contractSizer: {
     alphaSort: false,
