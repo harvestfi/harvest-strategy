@@ -35,7 +35,7 @@ All tests are located under the `test` folder.
       hardhat: {
         allowUnlimitedContractSize: true,
         forking: {
-          url: "https://eth-mainnet.alchemyapi.io/v2/" + keys.alchemyKey,
+          url: "https://eth-mainnet.g.alchemy.com/v2/" + keys.alchemyKey,
           blockNumber: 11807770, // <-- edit here
         }
       }
