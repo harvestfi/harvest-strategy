@@ -117,6 +117,20 @@ async function setupCoreProtocol(config) {
     }
   }
 
+  if(config.balanverV2Pool) {
+    const balancerV2Dex = await IDex.at("0x2F04b8a306C482D9d9fdca083e2b9Ad20F74eA05");
+    for (i=0;i<config.balanverV2Pool.length;i++) {
+      await balancerV2Dex.setPool(config.balanverV2Pool[i][0], config.balanverV2Pool[i][1], config.balanverV2Pool[i][2], {from: config.ULOwner})
+    }
+  }
+
+  if(config.balanverV3Pool) {
+    const balancerV3Dex = await IDex.at("0x06A81bB23c17c022a3C654a3a5F6Cb4e1a8461b9");
+    for (i=0;i<config.balanverV3Pool.length;i++) {
+      await balancerV3Dex.setPool(config.balanverV3Pool[i][0], config.balanverV3Pool[i][1], config.balanverV3Pool[i][2], {from: config.ULOwner})
+    }
+  }
+
   if(config.curveSetup) {
     const curveDex = await IDex.at("0xdABCC7b3ba13af3AC02C4FBe4e964ac56ac76C19");
     for (i=0;i<config.curveSetup.length;i++) {
