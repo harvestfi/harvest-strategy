@@ -11,12 +11,12 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("MorphoVaultStrategyMainnet_HY_USDC_V3");
+const Strategy = artifacts.require("MorphoVaultStrategyMainnet_HY_USDC_V2");
 
 // Developed and tested at blockNumber 24369700
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Morpho Vault V3 HyperithmUSDC Degen", function() {
+describe("Mainnet Morpho Vault V2 HyperithmUSDC Degen", function() {
   let accounts;
 
   // external contracts

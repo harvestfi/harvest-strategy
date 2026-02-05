@@ -11,19 +11,19 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("MorphoVaultStrategyMainnet_CR_USDC_V3");
+const Strategy = artifacts.require("MorphoVaultStrategyMainnet_RE7_ETH_V2");
 
 // Developed and tested at blockNumber 24369700
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Morpho Vault V3 Clearstar USDC Core", function() {
+describe("Mainnet Morpho Vault V2 Re7 WETH", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0x072a452Eb96f4CD3458473754d23B86eEe4E8bDf";
+  let underlyingWhale = "0x4a18a50a8328b42773268B4b436254056b7d70CE";
   let morphoWhale = "0x72b23AeBbD4aBfc1cEA755686710E74c93696Fae";
   let morpho = "0x58D97B57BB95320F9a05dC918Aef65434969c2B2";
   let morphoToken;
@@ -41,7 +41,7 @@ describe("Mainnet Morpho Vault V3 Clearstar USDC Core", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+    underlying = await IERC20.at("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
     console.log("Fetching Underlying at: ", underlying.address);
     morphoToken = await IERC20.at(morpho);
   }
@@ -69,7 +69,7 @@ describe("Mainnet Morpho Vault V3 Clearstar USDC Core", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": "0x99671dbf3D87C0b8f23E7Ea5B20CFAA6175578ca",
+      "existingVaultAddress": "0xFE09e53A81Fe2808bc493ea64319109B5bAa573e",
       "announceStrategy": true,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,

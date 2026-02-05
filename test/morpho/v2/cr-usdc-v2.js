@@ -11,12 +11,12 @@ const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("IERC20");
 
 //const Strategy = artifacts.require("");
-const Strategy = artifacts.require("MorphoVaultStrategyMainnet_FX_USDC_V3");
+const Strategy = artifacts.require("MorphoVaultStrategyMainnet_CR_USDC_V2");
 
 // Developed and tested at blockNumber 24369700
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Morpho Vault V3 f(x) Protocol Re7 USDC", function() {
+describe("Mainnet Morpho Vault V2 Clearstar USDC Core", function() {
   let accounts;
 
   // external contracts
@@ -69,7 +69,7 @@ describe("Mainnet Morpho Vault V3 f(x) Protocol Re7 USDC", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": "0x40C0a9789D4C38e1125C540edB664fFff69C83E7",
+      "existingVaultAddress": "0x99671dbf3D87C0b8f23E7Ea5B20CFAA6175578ca",
       "announceStrategy": true,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
