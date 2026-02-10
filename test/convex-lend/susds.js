@@ -6,13 +6,13 @@ const addresses = require("../test-config.js");
 const BigNumber = require("bignumber.js");
 const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
 
-const Strategy = artifacts.require("ConvexLendStrategyMainnet_crvUSD_tBTC");
+const Strategy = artifacts.require("ConvexLendStrategyMainnet_crvUSD_sUSDS");
 const IBooster = artifacts.require("IBooster");
 
 //This test was developed at blockNumber 22267000
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet Convex Curve Lend crvUSD tBTC", function() {
+describe("Mainnet Convex Curve Lend crvUSD sUSDS", function() {
   let accounts;
 
   // external contracts
