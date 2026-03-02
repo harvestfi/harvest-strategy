@@ -38,8 +38,6 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
         0xbb60b35bae256d3c1378ff05e8d7bee588cd800739c720a107471dfa218f74c1;
     bytes32 internal constant _METAPOOL_SLOT =
         0x567ad8b67c826974a167f1a361acbef5639a3e7e02e99edbc648a84b0923d5b7;
-    bytes32 internal constant _USE_ETH_SLOT =
-        0xd1c66203919dad2c7ff533613d8d5c2347bf00dec1d07869e2212247cbd8dbf1;
 
     address[] public rewardTokens;
 
@@ -80,12 +78,6 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
                     uint256(keccak256("eip1967.strategyStorage.metaPool")) - 1
                 )
         );
-        assert(
-            _USE_ETH_SLOT ==
-                bytes32(
-                    uint256(keccak256("eip1967.strategyStorage.useEth")) - 1
-                )
-        );
     }
 
     function initializeBaseStrategy(
@@ -97,8 +89,7 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
         uint256 _depositArrayPosition,
         address _curveDeposit,
         uint256 _nTokens,
-        bool _metaPool,
-        bool _useEth
+        bool _metaPool
     ) public initializer {
         BaseUpgradeableStrategy.initialize(
             _storage,
@@ -121,7 +112,6 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
         _setCurveDeposit(_curveDeposit);
         _setNTokens(_nTokens);
         _setMetaPool(_metaPool);
-        _setUseEth(_useEth);
     }
 
     function depositArbCheck() public pure returns (bool) {
@@ -287,15 +277,9 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
                 depositArray[depositArrayPosition()] = tokenBalance;
                 if (_depositToken == weth) {
                     IWETH(weth).withdraw(tokenBalance);
-                    if (useEth()) {
-                        ICurveDeposit_2token_new(_curveDeposit).add_liquidity{
-                            value: tokenBalance
-                        }(depositArray, minimum, true);
-                    } else {
-                        ICurveDeposit_2token(_curveDeposit).add_liquidity{
-                            value: tokenBalance
-                        }(depositArray, minimum);
-                    }
+                    ICurveDeposit_2token_new(_curveDeposit).add_liquidity{
+                        value: tokenBalance
+                    }(depositArray, minimum, true);
                 } else {
                     ICurveDeposit_2token(_curveDeposit).add_liquidity(
                         depositArray,
@@ -490,14 +474,6 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
 
     function metaPool() public view returns (bool) {
         return getBoolean(_METAPOOL_SLOT);
-    }
-
-    function _setUseEth(bool _value) internal {
-        setBoolean(_USE_ETH_SLOT, _value);
-    }
-
-    function useEth() public view returns (bool) {
-        return getBoolean(_USE_ETH_SLOT);
     }
 
     function finalizeUpgrade() external onlyGovernance {

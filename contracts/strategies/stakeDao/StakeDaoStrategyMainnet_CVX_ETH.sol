@@ -24,8 +24,7 @@ contract StakeDaoStrategyMainnet_CVX_ETH is StakeDaoStrategy {
       0, //depositArrayPosition. Find deposit transaction -> input params
       curveDeposit, // deposit contract: usually underlying. Find deposit transaction -> interacted contract
       2, //nTokens -> total number of deposit tokens
-      false, //metaPool -> if LP token address == pool address (at curve)
-      true //useEth -> if the deposit contract is using ETH
+      false //metaPool -> if LP token address == pool address (at curve)
     );
     rewardTokens = [crv];
   }
