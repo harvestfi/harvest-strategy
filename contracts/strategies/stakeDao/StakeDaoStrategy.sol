@@ -277,9 +277,9 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
                 depositArray[depositArrayPosition()] = tokenBalance;
                 if (_depositToken == weth) {
                     IWETH(weth).withdraw(tokenBalance);
-                    ICurveDeposit_2token(_curveDeposit).add_liquidity{
+                    ICurveDeposit_2token_new(_curveDeposit).add_liquidity{
                         value: tokenBalance
-                    }(depositArray, minimum);
+                    }(depositArray, minimum, true);
                 } else {
                     ICurveDeposit_2token(_curveDeposit).add_liquidity(
                         depositArray,
