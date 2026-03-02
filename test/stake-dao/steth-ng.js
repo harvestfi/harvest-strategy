@@ -63,9 +63,10 @@ describe("Mainnet StakeDao stETH ng", function() {
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
+      "existingVaultAddress": "0xc27bfE32E0a934a12681C1b35acf0DBA0e7460Ba",
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
+      "announceStrategy": true,
       "underlying": underlying,
       "governance": governance,
     });
@@ -87,7 +88,7 @@ describe("Mainnet StakeDao stETH ng", function() {
       let newSharePrice;
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
-        await crvToken.transfer(strategy.address, new BigNumber(1e18), {from: crvWhale});
+        await crvToken.transfer(strategy.address, new BigNumber(5e19), {from: crvWhale});
 
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
         await controller.doHardWork(vault.address, { from: governance });
