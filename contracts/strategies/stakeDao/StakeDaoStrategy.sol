@@ -13,6 +13,7 @@ import "../../base/interface/curve/ICurveDeposit_2token.sol";
 import "../../base/interface/curve/ICurveDeposit_2token_new.sol";
 import "../../base/interface/curve/ICurveDeposit_2token_stable.sol";
 import "../../base/interface/curve/ICurveDeposit_3token.sol";
+import "../../base/interface/curve/ICurveDeposit_3token_stable.sol";
 import "../../base/interface/curve/ICurveDeposit_3token_meta.sol";
 import "../../base/interface/curve/ICurveDeposit_4token.sol";
 import "../../base/interface/curve/ICurveDeposit_4token_meta.sol";
@@ -288,15 +289,16 @@ contract StakeDaoStrategy is BaseUpgradeableStrategy {
                 }
             }
         } else if (nTokens() == 3) {
-            uint256[3] memory depositArray;
-            depositArray[depositArrayPosition()] = tokenBalance;
             if (metaPool()) {
-                ICurveDeposit_3token_meta(_curveDeposit).add_liquidity(
-                    underlying(),
+                uint256[] memory depositArray = new uint256[](3);
+                depositArray[depositArrayPosition()] = tokenBalance;
+                ICurveDeposit_3token_stable(_curveDeposit).add_liquidity(
                     depositArray,
                     minimum
                 );
             } else {
+                uint256[3] memory depositArray;
+                depositArray[depositArrayPosition()] = tokenBalance;
                 ICurveDeposit_3token(_curveDeposit).add_liquidity(
                     depositArray,
                     minimum
