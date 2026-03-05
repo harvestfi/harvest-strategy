@@ -68,18 +68,8 @@ describe("Mainnet StakeDao WBTC-cbBTC-hemiBTC", function() {
       "existingVaultAddress": null,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
-      "announceStrategy": true,
       "underlying": underlying,
       "governance": governance,
-      ULOwner: addresses.ULOwner,
-      liquidation: [
-        { uniV3: [weth, wbtc] },
-        { uniV3: [crv, weth] },
-      ],
-      uniV3Fee: [
-        [weth, crv, "3000"],
-        [weth, wbtc, "500"],
-      ],
     });
 
     // whale send underlying to farmers

@@ -92,21 +92,21 @@ describe("Mainnet Convex frxUSD-OUSD", function () {
       underlying: underlying,
       governance: governance,
       liquidation: [
-        { uniV3: [cvx, weth] },
-        { uniV3: [crv, weth] },
+        // { uniV3: [cvx, weth] },
+        // { uniV3: [crv, weth] },
         { curve: [weth, crvusd, frxusd] },
       ],
-      uniV3Fee: [
-        [weth, crv, "3000"],
-        [weth, cvx, "10000"],
-      ],
+      // uniV3Fee: [
+      //   [weth, crv, "3000"],
+      //   [weth, cvx, "10000"],
+      // ],
       curveSetup: [
-        [
-          weth,
-          crvusd,
-          "0x4ebdf703948ddcea3b11f675b4d1fba9d2414a14",
-          [1, 0, 1, 3, 3],
-        ],
+        // [
+        //   weth,
+        //   crvusd,
+        //   "0x4ebdf703948ddcea3b11f675b4d1fba9d2414a14",
+        //   [1, 0, 1, 3, 3],
+        // ],
         [
           crvusd,
           frxusd,
@@ -114,7 +114,7 @@ describe("Mainnet Convex frxUSD-OUSD", function () {
           [1, 0, 1, 10, 2],
         ],
       ],
-      ULOwner: addresses.ULOwner,
+      // ULOwner: addresses.ULOwner,
     });
 
     // whale send underlying to farmers

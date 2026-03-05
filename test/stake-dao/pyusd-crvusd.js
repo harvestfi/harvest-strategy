@@ -69,15 +69,10 @@ describe("Mainnet StakeDao PYUSD-crvUSD", function() {
       "existingVaultAddress": null,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
-      "announceStrategy": true,
       "underlying": underlying,
       "governance": governance,
       liquidation: [
-        { uniV3: [crv, weth] },
         { curve: [weth, crvusd] },
-      ],
-      uniV3Fee: [
-        [weth, crv, "3000"],
       ],
       curveSetup: [
         [
