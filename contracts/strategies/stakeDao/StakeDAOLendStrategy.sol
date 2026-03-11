@@ -68,7 +68,7 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
         bal = IERC20(rewardPool()).balanceOf(address(this));
     }
 
-    function _exitRewardPool(bool) internal {
+    function _exitRewardPool() internal {
         uint256 stakedBalance = _rewardPoolBalance();
         if (stakedBalance != 0) {
             IERC4626(rewardPool()).redeem(stakedBalance, address(this), address(this));
@@ -151,7 +151,7 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
     function withdrawAllToVault() public restricted {
         _liquidateRewards();
         address _underlying = underlying();
-        _redeemAll(false);
+        _redeemAll();
         if (IERC20(_underlying).balanceOf(address(this)) > 0) {
             IERC20(_underlying).safeTransfer(vault(), IERC20(_underlying).balanceOf(address(this)));
         }
@@ -160,7 +160,7 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
 
     function emergencyExit() external onlyGovernance {
         _accrueFee();
-        _redeemAll(false);
+        _redeemAll();
         _setPausedInvesting(true);
         _updateStoredBalance();
     }
@@ -175,6 +175,7 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
         uint256 balance = IERC20(_underlying).balanceOf(address(this));
         if (amountUnderlying <= balance) {
             IERC20(_underlying).safeTransfer(vault(), amountUnderlying);
+            _updateStoredBalance();
             return;
         }
         uint256 toRedeem = amountUnderlying.sub(balance);
@@ -213,6 +214,7 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
             emit ProfitsNotCollected(sell(), false);
             return;
         }
+        _claimRewards();
         _handleFee();
 
         address _rewardToken = rewardToken();
@@ -270,8 +272,8 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
         IERC4626(_lendingVault).withdraw(amountUnderlying, address(this), address(this));
     }
 
-    function _redeemAll(bool) internal {
-        _exitRewardPool(false);
+    function _redeemAll() internal {
+        _exitRewardPool();
         address _lendingVault = lendingVault();
         uint256 lpBalance = IERC20(_lendingVault).balanceOf(address(this));
         if (lpBalance > 0) {
