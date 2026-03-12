@@ -192,6 +192,7 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
     // ==================== Hard Work ====================
 
     function doHardWork() public restricted {
+        _claimRewards();
         _liquidateRewards();
         _investAllUnderlying();
         _updateStoredBalance();
@@ -214,7 +215,6 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
             emit ProfitsNotCollected(sell(), false);
             return;
         }
-        _claimRewards();
         _handleFee();
 
         address _rewardToken = rewardToken();
