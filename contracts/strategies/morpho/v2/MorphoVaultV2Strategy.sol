@@ -138,6 +138,7 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
     uint256 balance = IERC20(_underlying).balanceOf(address(this));
     if (amountUnderlying <= balance) {
       IERC20(_underlying).safeTransfer(vault(), amountUnderlying);
+      _updateStoredSupplied();
       return;
     }
     uint256 toRedeem = amountUnderlying - balance;
