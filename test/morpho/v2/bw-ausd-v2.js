@@ -116,7 +116,6 @@ describe("Mainnet Morpho Vault V2 Bitwise Premium RWA AUSD", function() {
 
         if (i % 3 == 0) {
           await morphoToken.transfer(strategy.address, new BigNumber(1e18), {from: morphoWhale});
-          await underlying.transfer(strategy.address, new BigNumber(1000e6), {from: underlyingWhale});
         }
 
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
@@ -135,6 +134,7 @@ describe("Mainnet Morpho Vault V2 Bitwise Premium RWA AUSD", function() {
 
         await Utils.advanceNBlock(blocksPerHour);
       }
+      
       await vault.withdraw(new BigNumber(await vault.balanceOf(farmer1)).toFixed(), { from: farmer1 });
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);

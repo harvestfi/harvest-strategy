@@ -19,7 +19,9 @@ describe("Mainnet StakeDAO Lend sreUSD", function() {
 
   // external setup
   let underlyingWhale = "0xE535b101a990f2Cc37893B774c8e5002A4699659";
+  let crvWhale = "0x300d1a01b2C8fc34d5D15071B2611560D7AB9d61";
   let crv = "0xD533a949740bb3306d119CC777fa900bA034cd52";
+  let crvToken;
 
   // parties in the protocol
   let governance;
@@ -35,6 +37,7 @@ describe("Mainnet StakeDAO Lend sreUSD", function() {
 
   async function setupExternalContracts() {
     underlying = await IERC20.at("0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E");
+    crvToken = await IERC20.at(crv);
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
@@ -52,11 +55,12 @@ describe("Mainnet StakeDAO Lend sreUSD", function() {
     accounts = await web3.eth.getAccounts();
 
     await web3.eth.sendTransaction({ from: accounts[8], to: governance, value: 10e18});
+    await web3.eth.sendTransaction({ from: accounts[8], to: crvWhale, value: 10e18});
 
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale, addresses.ULOwner]);
+    await impersonates([governance, underlyingWhale, crvWhale]);
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
@@ -66,13 +70,6 @@ describe("Mainnet StakeDAO Lend sreUSD", function() {
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
-      "liquidation": [
-        {"curve": [crv, underlying.address]},
-      ],
-      "curveSetup": [
-        [crv, underlying.address, "0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14", [2, 0, 1, 3, 3]],
-      ],
-      "ULOwner": addresses.ULOwner,
     });
 
     // whale send underlying to farmers
@@ -93,6 +90,7 @@ describe("Mainnet StakeDAO Lend sreUSD", function() {
       let newSharePrice;
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
+        await crvToken.transfer(strategy.address, new BigNumber(5e19), {from: crvWhale});
 
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
         await controller.doHardWork(vault.address, { from: governance });

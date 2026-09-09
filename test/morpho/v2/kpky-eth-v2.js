@@ -13,7 +13,7 @@ const IERC20 = artifacts.require("IERC20");
 //const Strategy = artifacts.require("");
 const Strategy = artifacts.require("MorphoVaultStrategyMainnet_KPKY_ETH_V2");
 
-// Developed and tested at blockNumber 24571000
+// Developed and tested at blockNumber 25135500
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
 describe("Mainnet Morpho Vault V2 KPK WETH Yield", function() {
@@ -24,9 +24,6 @@ describe("Mainnet Morpho Vault V2 KPK WETH Yield", function() {
 
   // external setup
   let underlyingWhale = "0x4a18a50a8328b42773268B4b436254056b7d70CE";
-  let morphoWhale = "0x72b23AeBbD4aBfc1cEA755686710E74c93696Fae";
-  let morpho = "0x58D97B57BB95320F9a05dC918Aef65434969c2B2";
-  let morphoToken;
 
   // parties in the protocol
   let governance;
@@ -43,13 +40,11 @@ describe("Mainnet Morpho Vault V2 KPK WETH Yield", function() {
   async function setupExternalContracts() {
     underlying = await IERC20.at("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
     console.log("Fetching Underlying at: ", underlying.address);
-    morphoToken = await IERC20.at(morpho);
   }
 
   async function setupBalance(){
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
-    await web3.eth.sendTransaction({ from: etherGiver, to: morphoWhale, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
@@ -62,14 +57,15 @@ describe("Mainnet Morpho Vault V2 KPK WETH Yield", function() {
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale, morphoWhale]);
+    await impersonates([governance, underlyingWhale]);
 
     let etherGiver = accounts[9];
     await web3.eth.sendTransaction({ from: etherGiver, to: governance, value: 10e18});
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
+      "existingVaultAddress": "0xFE09e53A81Fe2808bc493ea64319109B5bAa573e",
+      "announceStrategy": true,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
@@ -95,10 +91,6 @@ describe("Mainnet Morpho Vault V2 KPK WETH Yield", function() {
 
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
-
-        if (i % 3 == 0) {
-          await morphoToken.transfer(strategy.address, new BigNumber(1e18), {from: morphoWhale});
-        }
         
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
         await controller.doHardWork(vault.address, { from: governance });

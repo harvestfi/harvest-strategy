@@ -91,7 +91,7 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
   }
 
   function feeFloor() public view virtual returns (uint256) {
-    return 1e13;
+    return 1e3;
   }
 
   function _handleFee() internal {

@@ -1,27 +1,33 @@
 // Utilities
 const Utils = require("../utilities/Utils.js");
-const { impersonates, setupCoreProtocol, depositVault } = require("../utilities/hh-utils.js");
+const {
+  impersonates,
+  setupCoreProtocol,
+  depositVault,
+} = require("../utilities/hh-utils.js");
+
 const addresses = require("../test-config.js");
-
 const BigNumber = require("bignumber.js");
-const IERC20 = artifacts.require("@openzeppelin/contracts/token/ERC20/IERC20.sol:IERC20");
+const IERC20 = artifacts.require("IERC20");
+const IRewardPrePay = artifacts.require("IRewardPrePay");
 
-const Strategy = artifacts.require("StakeDAOLendStrategyMainnet_Llamalend_tBTC");
+//const Strategy = artifacts.require("");
+const Strategy = artifacts.require("MorphoVaultStrategyV2Mainnet_GC_WBTC");
 
-//This test was developed at blockNumber 24598500
+// Developed and tested at blockNumber 25135500
 
 // Vanilla Mocha test. Increased compatibility with tools that integrate Mocha.
-describe("Mainnet StakeDAO Lend tBTC", function() {
+describe("Mainnet Morpho GC WBTC", function() {
   let accounts;
 
   // external contracts
   let underlying;
 
   // external setup
-  let underlyingWhale = "0xE535b101a990f2Cc37893B774c8e5002A4699659";
-  let crvWhale = "0x300d1a01b2C8fc34d5D15071B2611560D7AB9d61";
-  let crv = "0xD533a949740bb3306d119CC777fa900bA034cd52";
-  let crvToken;
+  let underlyingWhale = "0x85bd033A8709b4D6603c2A1a8eef1Fd147F0Ca32";
+  let morpho = "0x58D97B57BB95320F9a05dC918Aef65434969c2B2";
+  let weth = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
+  let wbtc = "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599";
 
   // parties in the protocol
   let governance;
@@ -36,15 +42,14 @@ describe("Mainnet StakeDAO Lend tBTC", function() {
   let strategy;
 
   async function setupExternalContracts() {
-    underlying = await IERC20.at("0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E");
-    crvToken = await IERC20.at(crv);
+    underlying = await IERC20.at("0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599");
     console.log("Fetching Underlying at: ", underlying.address);
   }
 
   async function setupBalance(){
     let etherGiver = accounts[9];
-    // Give whale some ether to make sure the following actions are good
     await web3.eth.sendTransaction({ from: etherGiver, to: underlyingWhale, value: 10e18});
+    await web3.eth.sendTransaction({ from: etherGiver, to: addresses.ULOwner, value: 10e18});
 
     farmerBalance = await underlying.balanceOf(underlyingWhale);
     await underlying.transfer(farmer1, farmerBalance, { from: underlyingWhale });
@@ -54,43 +59,45 @@ describe("Mainnet StakeDAO Lend tBTC", function() {
     governance = addresses.Governance;
     accounts = await web3.eth.getAccounts();
 
-    await web3.eth.sendTransaction({ from: accounts[8], to: governance, value: 10e18});
-    await web3.eth.sendTransaction({ from: accounts[8], to: crvWhale, value: 10e18});
-
     farmer1 = accounts[1];
 
     // impersonate accounts
-    await impersonates([governance, underlyingWhale, crvWhale]);
+    await impersonates([governance, underlyingWhale, addresses.ULOwner]);
+
+    let etherGiver = accounts[9];
+    await web3.eth.sendTransaction({ from: etherGiver, to: governance, value: 10e18});
+    await web3.eth.sendTransaction({ from: etherGiver, to: addresses.ULOwner, value: 10e18});
 
     await setupExternalContracts();
     [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": "0xa20470a948D038e107C03A9BD967ec6f5C8255ae",
+      "existingVaultAddress": "0x5d9d25c7C457dD82fc8668FFC6B9746b674d4EcB",
       "announceStrategy": true,
       "strategyArtifact": Strategy,
       "strategyArtifactIsUpgradable": true,
       "underlying": underlying,
       "governance": governance,
+      "ULOwner": addresses.ULOwner,
+      // "liquidation": [
+      //   {"uniV3": [morpho, weth, wbtc]},
+      // ],
     });
 
     // whale send underlying to farmers
     await setupBalance();
-
   });
 
   describe("Happy path", function() {
     it("Farmer should earn money", async function() {
       let farmerOldBalance = new BigNumber(await underlying.balanceOf(farmer1));
       await depositVault(farmer1, underlying, vault, farmerBalance);
-      let fTokenBalance = new BigNumber(await vault.balanceOf(farmer1));
 
-      // Using half days is to simulate how we doHardwork in the real world
       let hours = 10;
       let blocksPerHour = 2400;
       let oldSharePrice;
       let newSharePrice;
+
       for (let i = 0; i < hours; i++) {
         console.log("loop ", i);
-        await crvToken.transfer(strategy.address, new BigNumber(5e19), {from: crvWhale});
 
         oldSharePrice = new BigNumber(await vault.getPricePerFullShare());
         await controller.doHardWork(vault.address, { from: governance });
@@ -105,12 +112,10 @@ describe("Mainnet StakeDAO Lend tBTC", function() {
 
         console.log("instant APR:", apr*100, "%");
         console.log("instant APY:", (apy-1)*100, "%");
-        await vault.withdraw(fTokenBalance.div(10), { from: farmer1 });
-        await depositVault(farmer1, underlying, vault, new BigNumber(await underlying.balanceOf(farmer1)))
+
         await Utils.advanceNBlock(blocksPerHour);
       }
-      fTokenBalance = new BigNumber(await vault.balanceOf(farmer1));
-      await vault.withdraw(fTokenBalance, { from: farmer1 });
+      await vault.withdraw(new BigNumber(await vault.balanceOf(farmer1)).toFixed(), { from: farmer1 });
       let farmerNewBalance = new BigNumber(await underlying.balanceOf(farmer1));
       Utils.assertBNGt(farmerNewBalance, farmerOldBalance);
 
@@ -118,10 +123,11 @@ describe("Mainnet StakeDAO Lend tBTC", function() {
       apy = ((farmerNewBalance.toFixed()/farmerOldBalance.toFixed()-1)*(24/(blocksPerHour*hours/300))+1)**365;
 
       console.log("earned!");
-      console.log("Overall APR:", apr*100, "%");
-      console.log("Overall APY:", (apy-1)*100, "%");
+      console.log("APR:", apr*100, "%");
+      console.log("APY:", (apy-1)*100, "%");
 
-      await strategy.withdrawAllToVault({ from: governance }); // making sure can withdraw all for a next switch
+      await strategy.withdrawAllToVault({from:governance}); // making sure can withdraw all for a next switch
+
     });
   });
 });

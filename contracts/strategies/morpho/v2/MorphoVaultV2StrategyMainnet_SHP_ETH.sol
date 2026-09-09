@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import "./MorphoVaultV2Strategy.sol";
 
-contract MorphoVaultStrategyMainnet_GC_ETH_V2 is MorphoVaultV2Strategy {
+contract MorphoVaultStrategyMainnet_SHP_ETH_V2 is MorphoVaultV2Strategy {
 
   constructor() {}
 
@@ -12,7 +12,7 @@ contract MorphoVaultStrategyMainnet_GC_ETH_V2 is MorphoVaultV2Strategy {
     address _vault
   ) public initializer {
     address underlying = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-    address morphoVault = address(0x4881Ef0BF6d2365D3dd6499ccd7532bcdBCE0658);
+    address morphoVault = address(0xbeef0046fcab1dE47E41fB75BB3dC4Dfc94108E3);
     address usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     address morpho = address(0x58D97B57BB95320F9a05dC918Aef65434969c2B2);
     MorphoVaultV2Strategy.initializeBaseStrategy(
