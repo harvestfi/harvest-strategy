@@ -134,6 +134,10 @@ contract InactiveVaultERC4626Strategy is BaseUpgradeableStrategy {
     setUint256(_STORED_SUPPLIED_SLOT, balance);
   }
 
+  function feeFloor() public view virtual returns (uint256) {
+    return 1e3;
+  }
+
   /**
    * @notice Processes any pending fees, redeems the fee amount, and forwards it to the fee recipients.
    */
@@ -145,7 +149,7 @@ contract InactiveVaultERC4626Strategy is BaseUpgradeableStrategy {
       return;
     }
     uint256 fee = pendingFee();
-    if (fee > 1e3) {
+    if (fee > feeFloor()) {
       address _underlying = underlying();
       uint256 availableBalance = IERC20(_underlying).balanceOf(address(this));
       if (availableBalance < fee) {

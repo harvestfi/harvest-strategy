@@ -122,10 +122,14 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
         _updateStoredBalance();
     }
 
+    function feeFloor() public view virtual returns (uint256) {
+        return 0;
+    }
+
     function _handleFee() internal {
         _accrueFee();
         uint256 fee = pendingFee();
-        if (fee > 0) {
+        if (fee > feeFloor()) {
             _redeem(fee);
             address _underlying = underlying();
             fee = Math.min(fee, IERC20(_underlying).balanceOf(address(this)));
@@ -152,8 +156,14 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
         _liquidateRewards();
         address _underlying = underlying();
         _redeemAll();
-        if (IERC20(_underlying).balanceOf(address(this)) > 0) {
-            IERC20(_underlying).safeTransfer(vault(), IERC20(_underlying).balanceOf(address(this)));
+        // Keep back whatever fee `_handleFee` could not pay out - it is below the dust floor,
+        // or the yield source refused the redemption. Handing it to the vault along with
+        // everything else would leave `pendingFee` with nothing behind it, and
+        // `investedUnderlyingBalance()` would then report less than zero.
+        uint256 balance = IERC20(_underlying).balanceOf(address(this));
+        uint256 fee = pendingFee();
+        if (balance > fee) {
+            IERC20(_underlying).safeTransfer(vault(), balance.sub(fee));
         }
         _updateStoredBalance();
     }
@@ -284,7 +294,11 @@ contract StakeDAOLendStrategy is BaseUpgradeableStrategy {
     // ==================== View & Admin ====================
 
     function investedUnderlyingBalance() public view returns (uint256) {
-        return IERC20(underlying()).balanceOf(address(this)).add(storedBalance()).sub(pendingFee());
+        uint256 total = IERC20(underlying()).balanceOf(address(this)).add(storedBalance());
+        uint256 fee = pendingFee();
+        // Clamped rather than subtracted outright: this is read by every vault entrypoint, so
+        // an underflow here would take deposits, withdrawals and the share price down with it.
+        return total > fee ? total.sub(fee) : 0;
     }
 
     function salvage(address recipient, address token, uint256 amount) public onlyGovernance {

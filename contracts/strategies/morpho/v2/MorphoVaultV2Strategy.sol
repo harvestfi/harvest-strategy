@@ -124,8 +124,14 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
     _handleFee();
     _liquidateRewards();
     _redeemMaximum();
-    if (IERC20(_underlying).balanceOf(address(this)) > 0) {
-      IERC20(_underlying).safeTransfer(vault(), IERC20(_underlying).balanceOf(address(this)));
+    // Keep back whatever fee `_handleFee` could not pay out - it is below the dust floor,
+    // or the yield source refused the redemption. Handing it to the vault along with
+    // everything else would leave `pendingFee` with nothing behind it, and
+    // `investedUnderlyingBalance()` would then report less than zero.
+    uint256 balance = IERC20(_underlying).balanceOf(address(this));
+    uint256 fee = pendingFee();
+    if (balance > fee) {
+      IERC20(_underlying).safeTransfer(vault(), balance - fee);
     }
     _updateStoredSupplied();
   }
@@ -336,10 +342,11 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
   * Returns the current balance.
   */
   function investedUnderlyingBalance() public view returns (uint256) {
-    // underlying in this strategy + underlying redeemable from Radiant - debt
-    return IERC20(underlying()).balanceOf(address(this))
-    + storedSupplied()
-    - pendingFee();
+    uint256 total = IERC20(underlying()).balanceOf(address(this)) + storedSupplied();
+    uint256 fee = pendingFee();
+    // Clamped rather than subtracted outright: this is read by every vault entrypoint, so
+    // an underflow here would take deposits, withdrawals and the share price down with it.
+    return total > fee ? total - fee : 0;
   }
 
   /**
@@ -364,8 +371,12 @@ contract MorphoVaultV2Strategy is BaseUpgradeableStrategy {
   }
 
   function _redeemMaximum() internal {
-    if (currentSupplied() > 0) {
-      _redeem(currentSupplied() - pendingFee());
+    // The fee is deliberately left supplied: it doubles as the rounding margin that keeps
+    // `withdraw` from asking the Morpho vault for more than the shares can cover.
+    uint256 supplied = currentSupplied();
+    uint256 fee = pendingFee();
+    if (supplied > fee) {
+      _redeem(supplied - fee);
     }
   }
 
