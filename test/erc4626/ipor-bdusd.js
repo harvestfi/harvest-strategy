@@ -56,6 +56,21 @@ describe("Mainnet IPOR Lending bdUSD", function () {
     return num(await vault.underlyingBalanceWithInvestment()) / num(await vault.totalSupply());
   }
 
+  // A fresh vault and strategy. Each group of tests that changes the vault's configuration
+  // or drains it takes its own, so the groups do not depend on each other's leftovers.
+  async function deploy() {
+    const vaultImpl = await HookVaultV2.new({ from: governance });
+    [controller, vault, strategy] = await setupCoreProtocol({
+      "existingVaultAddress": null,
+      "vaultImplementationOverride": vaultImpl.address,
+      "strategyArtifact": Strategy,
+      "strategyArtifactIsUpgradable": true,
+      "underlying": underlying,
+      "governance": governance,
+    });
+    vault = await HookVaultV2.at(vault.address);
+  }
+
   before(async function () {
     governance = addresses.Governance;
     accounts = await web3.eth.getAccounts();
@@ -71,16 +86,7 @@ describe("Mainnet IPOR Lending bdUSD", function () {
     fTokenErc20 = await IERC20.at(FTOKEN);
     console.log("Fetching Underlying at: ", underlying.address);
 
-    const vaultImpl = await HookVaultV2.new({ from: governance });
-    [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
-      "vaultImplementationOverride": vaultImpl.address,
-      "strategyArtifact": Strategy,
-      "strategyArtifactIsUpgradable": true,
-      "underlying": underlying,
-      "governance": governance,
-    });
-    vault = await HookVaultV2.at(vault.address);
+    await deploy();
 
     await fund(farmer1, "90000000000");   // 90,000 USDC
     await fund(farmer2, "10000000000");   // 10,000 USDC
@@ -187,6 +193,47 @@ describe("Mainnet IPOR Lending bdUSD", function () {
       // The withdrawer paid the fee, and nothing beyond the fee and IPOR's own revaluation.
       assert.isTrue(got <= entitlement * (1 - fee) * (1 + 1e-4), "the withdrawer did not pay the exit fee");
       assert.isTrue(got >= entitlement * (1 - fee) * ipor * (1 - 1e-4), "the withdrawer was charged more than the exit fee");
+    });
+
+    it("still attributes it when the exit is served from vault idle plus a redeem", async function () {
+      // The previous test exits a fully invested vault. Here 30% sits idle in the vault and
+      // the exiter holds 50% of supply, so the payout is part idle and part fresh redemption
+      // and the vault's min(entitlement, idle) has to bind on the entitlement for the fee to
+      // stay with the withdrawer.
+      await deploy();
+      await vault.setVaultFractionToInvest(70, 100, { from: governance });
+      await fund(farmer1, "50000000000");
+      await fund(farmer2, "50000000000");
+      await depositVault(farmer1, underlying, vault, "50000000000");
+      await depositVault(farmer2, underlying, vault, "50000000000");
+      await controller.doHardWork(vault.address, { from: governance });
+      await network.provider.send("evm_mine");
+
+      const idle = num(await vault.underlyingBalanceInVault());
+      const entitlement = num(await vault.underlyingBalanceWithInvestmentForHolder(farmer2));
+      assert.isTrue(entitlement > idle, "precondition: the exit must need a redemption too");
+      console.log("  vault idle", idle, "| entitlement", entitlement);
+
+      const fee = await iporExitFee();
+      const probe = "1000000000000";
+      const iporPps0 = num(await fToken.convertToAssets(probe));
+      const pps0 = await pricePerShare();
+      const before = num(await underlying.balanceOf(farmer2));
+      await vault.withdraw((await vault.balanceOf(farmer2)).toString(), { from: farmer2 });
+      const got = num(await underlying.balanceOf(farmer2)) - before;
+      const ipor = num(await fToken.convertToAssets(probe)) / iporPps0;
+      const bystander = (await pricePerShare()) / pps0;
+
+      // Only the redeemed part carries a fee, so the exiter's shortfall is fee x (what was
+      // redeemed), not fee x entitlement.
+      const redeemed = entitlement - idle;
+      console.log("  redeemed", redeemed, "| fee on it", Math.round(fee * redeemed), "| exiter paid", entitlement - got);
+      console.log("  ipor pps ratio", ipor.toFixed(8), "bystander pps ratio", bystander.toFixed(8));
+
+      const totalFee = num(await strategy.totalFeeNumerator()) / num(await strategy.feeDenominator());
+      const expected = ipor > 1 ? 1 + (ipor - 1) * (1 - totalFee) : ipor;
+      assert.isTrue(bystander >= expected * (1 - 2e-5), "the exit fee leaked onto the remaining holders");
+      assert.isTrue(entitlement - got >= fee * redeemed * 0.99, "the withdrawer did not pay the fee on what was redeemed");
     });
   });
 });

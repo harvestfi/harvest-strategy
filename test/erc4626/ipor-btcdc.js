@@ -56,6 +56,21 @@ describe("Mainnet IPOR Lending BTCdc", function () {
     return num(await vault.underlyingBalanceWithInvestment()) / num(await vault.totalSupply());
   }
 
+  // A fresh vault and strategy. Each group of tests that changes the vault's configuration
+  // or drains it takes its own, so the groups do not depend on each other's leftovers.
+  async function deploy() {
+    const vaultImpl = await HookVaultV2.new({ from: governance });
+    [controller, vault, strategy] = await setupCoreProtocol({
+      "existingVaultAddress": null,
+      "vaultImplementationOverride": vaultImpl.address,
+      "strategyArtifact": Strategy,
+      "strategyArtifactIsUpgradable": true,
+      "underlying": underlying,
+      "governance": governance,
+    });
+    vault = await HookVaultV2.at(vault.address);
+  }
+
   before(async function () {
     governance = addresses.Governance;
     accounts = await web3.eth.getAccounts();
@@ -71,16 +86,7 @@ describe("Mainnet IPOR Lending BTCdc", function () {
     fTokenErc20 = await IERC20.at(FTOKEN);
     console.log("Fetching Underlying at: ", underlying.address);
 
-    const vaultImpl = await HookVaultV2.new({ from: governance });
-    [controller, vault, strategy] = await setupCoreProtocol({
-      "existingVaultAddress": null,
-      "vaultImplementationOverride": vaultImpl.address,
-      "strategyArtifact": Strategy,
-      "strategyArtifactIsUpgradable": true,
-      "underlying": underlying,
-      "governance": governance,
-    });
-    vault = await HookVaultV2.at(vault.address);
+    await deploy();
 
     await fund(farmer1, "90000000");   // 0.9 WBTC
     await fund(farmer2, "10000000");   // 0.1 WBTC
@@ -187,6 +193,90 @@ describe("Mainnet IPOR Lending BTCdc", function () {
       // The withdrawer paid the fee, and nothing beyond the fee and IPOR's own revaluation.
       assert.isTrue(got <= entitlement * (1 - fee) * (1 + 1e-4), "the withdrawer did not pay the exit fee");
       assert.isTrue(got >= entitlement * (1 - fee) * ipor * (1 - 1e-4), "the withdrawer was charged more than the exit fee");
+    });
+  });
+  describe("Fee handling", function () {
+    // A position increase that is small enough for the accrued fee to fall under
+    // _handleFee's 1e3 dust floor. On 8-decimal WBTC that is only ~6,700 sat of gain, so
+    // it is an ordinary inter-harvest move rather than a corner case.
+    async function accrueDustFee() {
+      const numerator = num(await strategy.totalFeeNumerator());
+      const denominator = num(await strategy.feeDenominator());
+      // Sized off whatever gap is already there, so the accrued fee lands comfortably under
+      // the 1e3 floor regardless of what the PlasmaVault's last refresh did.
+      const gap = Math.max(num(await strategy.currentBalance()) - num(await strategy.storedBalance()), 0);
+      const increase = Math.max(Math.floor(500 * denominator / numerator) - gap, 0);
+      if (increase > 0) {
+        await underlying.approve(FTOKEN, String(increase), { from: reference });
+        await fToken.deposit(String(increase), strategy.address, { from: reference });
+        await network.provider.send("evm_mine"); // clear the lock the donation armed
+      }
+      await strategy.doHardWork({ from: governance });
+      return num(await strategy.pendingFee());
+    }
+
+    it("a full exit still works when the accrued fee is below the dust floor", async function () {
+      await fund(farmer1, "90000000");
+      await fund(reference, "90000000");
+      await depositVault(farmer1, underlying, vault, "90000000");
+      await controller.doHardWork(vault.address, { from: governance });
+      await network.provider.send("evm_mine");
+
+      const dust = await accrueDustFee();
+      console.log("  pendingFee below the dust floor:", dust);
+      assert.isTrue(dust > 0 && dust <= 1000, "precondition: an unpayable dust fee must be pending, got " + dust);
+
+      // The whole supply leaves, so the vault drains the strategy completely. The fee has
+      // to stay behind it, or investedUnderlyingBalance() underflows and the exit reverts.
+      const before = num(await underlying.balanceOf(farmer1));
+      await vault.withdraw((await vault.balanceOf(farmer1)).toString(), { from: farmer1 });
+      const got = num(await underlying.balanceOf(farmer1)) - before;
+      console.log("  farmer1 exited with", got, "| strategy reports", num(await strategy.investedUnderlyingBalance()));
+
+      assert.isTrue(got > 0, "the sole holder must be able to exit");
+      assert.equal((await vault.balanceOf(farmer1)).toString(), "0");
+      assert.equal(num(await strategy.investedUnderlyingBalance()), 0);
+      // And the vault is still usable afterwards, rather than reverting on every view.
+      assert.isTrue(num(await vault.getPricePerFullShare()) > 0);
+    });
+
+    it("governance draining the strategy leaves the vault usable", async function () {
+      await fund(farmer1, "90000000");
+      await fund(reference, "90000000");
+      await depositVault(farmer1, underlying, vault, "90000000");
+      await controller.doHardWork(vault.address, { from: governance });
+      await network.provider.send("evm_mine");
+      const dust = await accrueDustFee();
+      console.log("  pendingFee below the dust floor:", dust);
+      assert.isTrue(dust > 0 && dust <= 1000, "precondition: an unpayable dust fee must be pending, got " + dust);
+
+      await vault.withdrawAll({ from: governance });
+      console.log("  after withdrawAll - strategy idle", num(await underlying.balanceOf(strategy.address)),
+                  "pendingFee", num(await strategy.pendingFee()),
+                  "reported", num(await strategy.investedUnderlyingBalance()));
+      assert.isTrue(num(await vault.getPricePerFullShare()) > 0, "share price must not revert after a drain");
+
+      const before = num(await underlying.balanceOf(farmer1));
+      await vault.withdraw((await vault.balanceOf(farmer1)).toString(), { from: farmer1 });
+      assert.isTrue(num(await underlying.balanceOf(farmer1)) > before, "holders must still be able to exit");
+    });
+
+    it("forwards a payable fee to the reward forwarder", async function () {
+      await fund(farmer1, "90000000");
+      await fund(reference, "90000000");
+      await depositVault(farmer1, underlying, vault, "90000000");
+      await controller.doHardWork(vault.address, { from: governance });
+      await network.provider.send("evm_mine");
+
+      // Well above the dust floor, so _handleFee redeems it and hands it to the forwarder.
+      await underlying.approve(FTOKEN, "1000000", { from: reference });
+      await fToken.deposit("1000000", strategy.address, { from: reference });
+      await network.provider.send("evm_mine");
+
+      await strategy.doHardWork({ from: governance });
+      const pending = num(await strategy.pendingFee());
+      console.log("  pendingFee after the harvest:", pending);
+      assert.isTrue(pending <= 1000, "the fee must have been paid out, not left pending");
     });
   });
 });
