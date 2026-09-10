@@ -195,6 +195,46 @@ describe("Mainnet IPOR Lending bdUSD", function () {
       assert.isTrue(got >= entitlement * (1 - fee) * ipor * (1 - 1e-4), "the withdrawer was charged more than the exit fee");
     });
 
+    it("leaves the fee latent - and unpaid - for an exit served entirely from idle", async function () {
+      // Deliberate policy, pinned here so a change to it is visible: the position is marked
+      // GROSS, so the exit fee is charged only to the user whose withdrawal actually
+      // triggers a redemption. A withdrawal the vault can serve out of idle underlying
+      // triggers none, so that user pays nothing and the fee stays latent in the position
+      // for whoever redeems next. Marking net (previewRedeem) would instead take the
+      // haircut into the share price at investment time, charging every holder up front.
+      await deploy();
+      await fund(farmer1, "50000000000");
+      await fund(farmer2, "50000000000");
+      await depositVault(farmer1, underlying, vault, "50000000000");
+      await controller.doHardWork(vault.address, { from: governance }); // farmer1 goes in
+      await network.provider.send("evm_mine");
+      await depositVault(farmer2, underlying, vault, "50000000000");    // farmer2 stays idle
+
+      const idle = num(await vault.underlyingBalanceInVault());
+      const entitlement1 = num(await vault.underlyingBalanceWithInvestmentForHolder(farmer1));
+      assert.isTrue(entitlement1 <= idle, "precondition: the exit must be servable without redeeming");
+      const heldShares = new BigNumber(await fTokenErc20.balanceOf(strategy.address)).toFixed();
+      const latent = num(await fToken.convertToAssets(heldShares)) - num(await fToken.previewRedeem(heldShares));
+      console.log("  vault idle", idle, "| farmer1 entitlement", entitlement1, "| latent fee in the position", latent);
+      assert.isTrue(latent > 0, "precondition: the position must carry an exit fee");
+
+      const before1 = num(await underlying.balanceOf(farmer1));
+      await vault.withdraw((await vault.balanceOf(farmer1)).toString(), { from: farmer1 });
+      const got1 = num(await underlying.balanceOf(farmer1)) - before1;
+      console.log("  farmer1 received", got1, "of a", entitlement1, "entitlement - fee paid:", entitlement1 - got1);
+
+      // No redemption, so no fee - the gross mark is what makes this true.
+      assert.isTrue(got1 >= entitlement1 * (1 - 1e-6), "an exit needing no redemption must pay no exit fee");
+      // The fee did not vanish: it is still sitting in the position farmer2 now owns, and
+      // farmer2 pays it when they redeem.
+      const before2 = num(await underlying.balanceOf(farmer2));
+      const entitlement2 = num(await vault.underlyingBalanceWithInvestmentForHolder(farmer2));
+      await vault.withdraw((await vault.balanceOf(farmer2)).toString(), { from: farmer2 });
+      const got2 = num(await underlying.balanceOf(farmer2)) - before2;
+      console.log("  farmer2 received", got2, "of a", entitlement2, "entitlement - fee paid:", entitlement2 - got2);
+      assert.isTrue(entitlement2 - got2 >= latent * 0.99, "the deferred fee must land on the holder who does redeem");
+    });
+
     it("still attributes it when the exit is served from vault idle plus a redeem", async function () {
       // The previous test exits a fully invested vault. Here 30% sits idle in the vault and
       // the exiter holds 50% of supply, so the payout is part idle and part fresh redemption

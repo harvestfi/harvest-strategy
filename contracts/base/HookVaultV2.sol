@@ -44,6 +44,8 @@ contract HookVaultV2 is VaultV2 {
 
   event DepositCapChanged(uint256 oldCap, uint256 newCap);
   event CompoundOnWithdrawChanged(bool value);
+  /// @notice The strategy refused the withdrawal-time hard work; the exit was priced without it.
+  event HardWorkOnWithdrawSkipped();
 
   constructor() {
     assert(_DEPOSIT_CAP_SLOT == bytes32(uint256(keccak256("eip1967.vaultStorage.depositCap")) - 1));
@@ -134,13 +136,30 @@ contract HookVaultV2 is VaultV2 {
    * @notice Runs the withdrawal-side hard work for the current strategy.
    * @dev Uses {IHardWorkHooks-doHardWorkOnWithdraw} when the strategy supports it,
    * otherwise falls back to `IStrategy.doHardWork()`.
+   *
+   * Compounding on the way out is a courtesy - it credits the exiting user the interest
+   * accrued since the last hard work - and it must never be able to block the exit itself.
+   * A strategy in its emergency state refuses `doHardWork()`, and that is precisely when
+   * holders most need to leave; a vault with no strategy has nothing to call at all. Both
+   * degrade to the pricing a stock `VaultV2` would have used.
    */
   function _hardWorkOnWithdraw() internal {
     address _strategy = strategy();
+    if (_strategy == address(0)) {
+      return;
+    }
     if (_supportsHardWorkHooks(_strategy)) {
-      IHardWorkHooks(_strategy).doHardWorkOnWithdraw();
+      try IHardWorkHooks(_strategy).doHardWorkOnWithdraw() {
+        return;
+      } catch {
+        emit HardWorkOnWithdrawSkipped();
+      }
     } else {
-      IStrategy(_strategy).doHardWork();
+      try IStrategy(_strategy).doHardWork() {
+        return;
+      } catch {
+        emit HardWorkOnWithdrawSkipped();
+      }
     }
   }
 

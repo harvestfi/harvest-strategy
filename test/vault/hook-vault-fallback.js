@@ -81,6 +81,20 @@ describe("HookVaultV2 as a drop-in for VaultV2", function () {
   });
 
   it("with everything off, produces the same result as stock VaultV2", async function () {
+    // This file and hook-vault-deposit-cap.js target the same live proxy, and that one
+    // upgrades it permanently. Run in one process (`npx hardhat test test/vault/`) mocha
+    // loads them alphabetically, so without this check the comparison below would be
+    // HookVaultV2 against HookVaultV2 and could no longer detect any divergence.
+    const implSlot = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+    const currentImpl = ethers.utils.getAddress(
+      "0x" + (await network.provider.send("eth_getStorageAt", [VAULT, implSlot, "latest"])).slice(-40)
+    );
+    assert.equal(
+      currentImpl.toLowerCase(), addresses.VaultImplementationV2.toLowerCase(),
+      "this comparison is only meaningful against the stock implementation - " +
+      "run this file on its own, not in the same process as hook-vault-deposit-cap.js"
+    );
+
     // The upgrade path burns 13 hours on the timelock, and the underlying protocol
     // accrues in that time. Give both runs the same elapsed time and the same transaction
     // count so the only difference measured is the vault implementation.

@@ -88,6 +88,11 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
    */
   function currentBalance() public view returns (uint256) {
     address _fToken = fToken();
+    // Marked GROSS, with `convertToAssets`. Any exit fee the yield source charges is
+    // deliberately left out of the share price and is instead borne by the user whose
+    // withdrawal actually triggers a redemption - see `_redeem`. A withdrawal the vault
+    // can serve from idle triggers none and pays none; that fee stays latent in the
+    // position until someone does redeem.
     uint256 underlyingBalance = IERC4626(_fToken).convertToAssets(IERC20(_fToken).balanceOf(address(this)));
     return underlyingBalance;
   }
@@ -491,15 +496,16 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
    */
   function _redeem(uint256 amountUnderlying) internal {
     address _fToken = fToken();
-    // Redeem by SHARES, not by assets. `withdraw(assets)` delivers exactly
-    // `amountUnderlying` and takes any vault withdraw fee as extra shares on top, so the
-    // position drops by more than the strategy hands to the vault; VaultV1._withdraw then
-    // prices the exit off the reduced total and the withdrawer bears only a pro-rata slice
-    // of the fee, with the rest landing on every other holder. Burning exactly the shares
-    // worth `amountUnderlying` makes the fee come out of the delivered assets instead: the
-    // position drops by precisely what was asked, and the vault's `min(entitlement, idle)`
-    // charges the whole fee to the user withdrawing. On a fee-free vault the two differ
-    // only by rounding.
+    // Burn the shares worth `amountUnderlying` and take whatever the yield source pays for
+    // them. With the position marked gross, that delivers `amountUnderlying` less the exit
+    // fee, and `VaultV1._withdraw` hands the withdrawing user `min(entitlement, idle)` -
+    // so the shortfall is exactly the fee and it lands on them alone.
+    //
+    // NOT `withdraw(assets)`, which delivers the full amount and burns the fee as EXTRA
+    // shares on top: the position would fall by more than was paid out, the vault would
+    // reprice the exit off the reduced total, and the fee would spread over every holder.
+    // And not `previewWithdraw` either - grossing up would deliver the full entitlement
+    // and push the fee onto the holders who stay.
     uint256 shares = Math.min(
       IERC4626(_fToken).convertToShares(amountUnderlying),
       IERC20(_fToken).balanceOf(address(this))
