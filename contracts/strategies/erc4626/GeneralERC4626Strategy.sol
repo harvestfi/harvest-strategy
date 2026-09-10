@@ -26,6 +26,7 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
   bytes32 internal constant _FTOKEN_SLOT = 0x462e4d44c9bae3e0ee3d71929710bef82ca7c929ce31980e75572ea415835b0e;
   bytes32 internal constant _STORED_SUPPLIED_SLOT = 0x280539da846b4989609abdccfea039bd1453e4f710c670b29b9eeaca0730c1a2;
   bytes32 internal constant _PENDING_FEE_SLOT = 0x0af7af9f5ccfa82c3497f40c7c382677637aee27293a6243a22216b51481bd97;
+  bytes32 internal constant _LOSS_CARRY_SLOT = 0x41899daaeb9cc577a761309ed45b44d3e89e0a9eaa6cd4333a3ebb5fa844d157;
 
   // this would be reset on each upgrade
   address[] public rewardTokens;
@@ -46,6 +47,7 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
     assert(_FTOKEN_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.fToken")) - 1));
     assert(_STORED_SUPPLIED_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.storedSupplied")) - 1));
     assert(_PENDING_FEE_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.pendingFee")) - 1));
+    assert(_LOSS_CARRY_SLOT == bytes32(uint256(keccak256("eip1967.strategyStorage.lossCarry")) - 1));
   }
 
   /**
@@ -130,15 +132,54 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
   }
 
   /**
-   * @notice Accrues fees based on the increase in balance.
+   * @notice Value the position has lost and not yet earned back. No performance fee is
+   * charged until it has.
+   * @return The unrecovered loss, in underlying.
+   */
+  function lossCarry() public view returns (uint256) {
+    return getUint256(_LOSS_CARRY_SLOT);
+  }
+
+  /**
+   * @notice Accrues the performance fee on the gain since the last call, above the high
+   * water mark.
+   * @dev `storedBalance` cannot itself be the high water mark: it has to track the real
+   * size of the position, which supplying and redeeming legitimately move. So a drop in
+   * value is remembered separately in `lossCarry` and offsets later gains, and only what
+   * is left is charged.
+   *
+   * Every caller runs this BEFORE it supplies or redeems in the same transaction, and
+   * `_updateStoredBalance()` runs after, so the difference measured here is always a pure
+   * change in value and never the strategy's own deposits or withdrawals.
+   *
+   * Without this, a dip resets the mark and depositors are charged the full fee for
+   * earning their own loss back. These are actively managed vaults whose NAV does fall -
+   * on a management-fee share mint, a rebalance, or a market-balance refresh - so over a
+   * saw-toothing period the fee taken would otherwise run well past the intended share of
+   * true net profit.
    */
   function _accrueFee() internal {
-    uint256 fee;
-    if (currentBalance() > storedBalance()) {
-      uint256 balanceIncrease = currentBalance().sub(storedBalance());
-      fee = balanceIncrease.mul(totalFeeNumerator()).div(feeDenominator());
+    uint256 balance = currentBalance();
+    uint256 stored = storedBalance();
+
+    if (balance < stored) {
+      setUint256(_LOSS_CARRY_SLOT, lossCarry().add(stored.sub(balance)));
+      return;
     }
-    setUint256(_PENDING_FEE_SLOT, pendingFee().add(fee));
+    if (balance == stored) {
+      return;
+    }
+
+    uint256 gain = balance.sub(stored);
+    uint256 carry = lossCarry();
+    if (carry > 0) {
+      uint256 recovered = Math.min(carry, gain);
+      setUint256(_LOSS_CARRY_SLOT, carry.sub(recovered));
+      gain = gain.sub(recovered);
+    }
+    if (gain > 0) {
+      setUint256(_PENDING_FEE_SLOT, pendingFee().add(gain.mul(totalFeeNumerator()).div(feeDenominator())));
+    }
   }
 
   /**

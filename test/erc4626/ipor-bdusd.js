@@ -153,8 +153,108 @@ describe("Mainnet IPOR Lending bdUSD", function () {
     });
   });
 
+  describe("Performance fee high water mark", function () {
+    let sink;
+
+    // Move PlasmaVault shares in and out of the strategy to simulate the position losing
+    // and regaining value. The PlasmaVault caches its market balances, so simulated time
+    // does not move `currentBalance()` on a fork; moving shares does, deterministically,
+    // and is what a NAV change looks like to the strategy.
+    async function moveShares(from, to, shares) {
+      await impersonates([from]);
+      await web3.eth.sendTransaction({ from: accounts[9], to: from, value: 1e18 });
+      await fTokenErc20.transfer(to, shares, { from: from });
+      await network.provider.send("evm_mine"); // a transfer arms the redemption lock
+    }
+
+    before(async function () {
+      await deploy();
+      sink = accounts[8];
+      await fund(farmer1, "90000000000");
+      await depositVault(farmer1, underlying, vault, "90000000000");
+      await controller.doHardWork(vault.address, { from: governance });
+      await network.provider.send("evm_mine");
+      await strategy.doHardWork({ from: governance }); // settle any fee from going in
+    });
+
+    it("charges the fee on a gain", async function () {
+      const before = num(await strategy.pendingFee());
+      const gain = num(await strategy.currentBalance()) * 0.02;
+      await fund(reference, "5000000000");
+      await underlying.approve(FTOKEN, String(Math.round(gain)), { from: reference });
+      await fToken.deposit(String(Math.round(gain)), strategy.address, { from: reference });
+      await network.provider.send("evm_mine");
+
+      await strategy.doHardWork({ from: governance });
+      console.log("  pendingFee", before, "->", num(await strategy.pendingFee()), "| lossCarry", num(await strategy.lossCarry()));
+      assert.equal(num(await strategy.lossCarry()), 0, "a gain must not create a loss carry");
+    });
+
+    it("records a loss instead of charging anything, then waives the fee on earning it back", async function () {
+      const peak = num(await strategy.currentBalance());
+      const heldShares = new BigNumber(await fTokenErc20.balanceOf(strategy.address));
+      const moved = heldShares.idiv(20).toFixed(); // ~5% of the position
+
+      // --- the dip ---
+      await moveShares(strategy.address, sink, moved);
+      const dipped = num(await strategy.currentBalance());
+      const feeBeforeDip = num(await strategy.pendingFee());
+      await strategy.doHardWork({ from: governance });
+      const carry = num(await strategy.lossCarry());
+      console.log("  position", peak, "->", dipped, "| lossCarry", carry, "| pendingFee", feeBeforeDip, "->", num(await strategy.pendingFee()));
+      assert.isTrue(carry > 0, "the loss must be carried");
+      assert.approximately(carry / (peak - dipped), 1, 0.01, "the whole loss must be carried");
+      assert.equal(num(await strategy.pendingFee()), feeBeforeDip, "a loss must not accrue a fee");
+
+      // --- earning it back: this is what a snapshot mark would charge for ---
+      const feeBeforeRecovery = num(await strategy.pendingFee());
+      const keptBefore = num(await strategy.investedUnderlyingBalance());
+      const valueBefore = num(await strategy.currentBalance());
+      await moveShares(sink, strategy.address, moved);
+      const recoveredValue = num(await strategy.currentBalance()) - valueBefore;
+      await strategy.doHardWork({ from: governance });
+      const keptOnRecovery = num(await strategy.investedUnderlyingBalance()) - keptBefore;
+      const feeAfterRecovery = num(await strategy.pendingFee());
+      const carryAfter = num(await strategy.lossCarry());
+      const wouldHaveBeen = (peak - dipped) * num(await strategy.totalFeeNumerator()) / num(await strategy.feeDenominator());
+      console.log("  recovered: pendingFee", feeBeforeRecovery, "->", feeAfterRecovery,
+                  "| lossCarry", carry, "->", carryAfter, "| a snapshot mark would have charged ~", Math.round(wouldHaveBeen));
+      assert.isTrue(carryAfter < carry * 0.02, "the recovery must clear the carry");
+      assert.isTrue(feeAfterRecovery - feeBeforeRecovery < wouldHaveBeen * 0.02,
+        "no fee is due for a recovery back to the previous high water mark");
+      // The mirror of the next test: depositors keep the whole recovery, not 1 - rate of it.
+      console.log("  depositors kept", keptOnRecovery, "of a", Math.round(recoveredValue), "recovery =",
+                  (keptOnRecovery / recoveredValue * 100).toFixed(2) + "%");
+      assert.approximately(keptOnRecovery / recoveredValue, 1, 0.01,
+        "depositors must keep the whole recovery");
+    });
+
+    it("charges again once the position is past its previous peak", async function () {
+      assert.isTrue(num(await strategy.lossCarry()) < 1e3, "precondition: the carry must be spent");
+      const rate = num(await strategy.totalFeeNumerator()) / num(await strategy.feeDenominator());
+
+      const before = num(await strategy.investedUnderlyingBalance());
+      const gain = Math.round(num(await strategy.currentBalance()) * 0.02);
+      await fund(reference, "5000000000");
+      await underlying.approve(FTOKEN, String(gain), { from: reference });
+      await fToken.deposit(String(gain), strategy.address, { from: reference });
+      await network.provider.send("evm_mine");
+      await strategy.doHardWork({ from: governance });
+      const kept = num(await strategy.investedUnderlyingBalance()) - before;
+
+      console.log("  gain past the peak", gain, "| depositors kept", kept,
+                  "=", (kept / gain * 100).toFixed(2) + "% (fee rate", (rate * 100).toFixed(0) + "%)");
+      assert.equal(num(await strategy.lossCarry()), 0, "a gain must not create a carry");
+      // Above the high water mark the fee is live again, so depositors keep 1 - rate of it.
+      assert.approximately(kept / gain, 1 - rate, 0.01, "a new-high gain must be charged the fee");
+    });
+  });
+
   describe("Exit fee attribution", function () {
     it("charges the PlasmaVault's exit fee to the withdrawing user only", async function () {
+      await deploy();
+      await fund(farmer1, "90000000000");
+      await fund(farmer2, "10000000000");
       await depositVault(farmer1, underlying, vault, new BigNumber(await underlying.balanceOf(farmer1)).toFixed());
       await depositVault(farmer2, underlying, vault, new BigNumber(await underlying.balanceOf(farmer2)).toFixed());
       await controller.doHardWork(vault.address, { from: governance });
