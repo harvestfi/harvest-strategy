@@ -47,6 +47,9 @@ const ALLOWED_BASE_DIVERGENCE = new Set([
   "+    function maxDeposit(address /*caller*/) public view virtual override returns (uint256) {",
   "-    function maxMint(address /*caller*/) public view override returns (uint256) {",
   "+    function maxMint(address /*caller*/) public view virtual override returns (uint256) {",
+  // VaultV2: opened up so the in-kind flavour can quote at the synced strategy balance.
+  "-    function totalAssets() public view override returns (uint256) {",
+  "+    function totalAssets() public view virtual override returns (uint256) {",
 ]);
 
 function extractFunction(src, name) {

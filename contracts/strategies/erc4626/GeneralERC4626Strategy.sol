@@ -22,6 +22,8 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
   event FeeRedeemDeferred(uint256 amount);
   /// @notice Emitted when the vault refused a deposit and the underlying was left idle.
   event SupplyDeferred(uint256 amount);
+  /// @notice Emitted when a holder was paid out in the yield source's own shares.
+  event WithdrawInKind(address indexed receiver, uint256 shareNumerator, uint256 shareDenominator, uint256 poolSharesOut);
 
   address public constant harvestMSIG = address(0xF49440C1F012d041802b25A73e5B0B9166a75c02);
 
@@ -510,6 +512,112 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
     _handleFee();
     _liquidateRewards();
     _updateStoredBalance();
+  }
+
+  // ========================= In-Kind Redemption =========================
+
+  /**
+   * @notice Transfers `_shareNumerator / _shareDenominator` of the strategy's position
+   * tokens - net of the shares backing accrued fees - straight to `_receiver`.
+   * @dev Called by an in-kind vault when a holder redeems in kind, so they can exit even
+   * while the yield source has no redeemable liquidity. The fraction is the holder's share
+   * of the vault's supply, so the payout is exactly proportional to the tokens actually
+   * held and does not depend on any cached exchange rate.
+   *
+   * The shares backing `pendingFee` are carved out before the split, so an in-kind exit
+   * cannot walk off with fees the strategy has not yet collected. `previewWithdraw` is the
+   * right measure for that carve-out: it grosses up for any exit fee the yield source
+   * charges, so what stays behind really is worth `pendingFee`.
+   * @param _shareNumerator Numerator of the redeemed fraction (redeemed vault shares).
+   * @param _shareDenominator Denominator of the fraction (vault supply before the burn).
+   * @param _receiver Address receiving the position tokens.
+   * @return poolSharesOut Amount of position tokens transferred.
+   */
+  function withdrawInKind(
+    uint256 _shareNumerator,
+    uint256 _shareDenominator,
+    address _receiver
+  ) external restricted returns (uint256 poolSharesOut) {
+    require(_shareDenominator > 0, "denominator must be greater than 0");
+    require(_shareNumerator <= _shareDenominator, "numerator must not exceed denominator");
+    _accrueFee();
+    address _fToken = fToken();
+    uint256 balance = IERC20(_fToken).balanceOf(address(this));
+    uint256 feeShares = IERC4626(_fToken).previewWithdraw(pendingFee());
+    uint256 netBalance = balance > feeShares ? balance.sub(feeShares) : 0;
+    poolSharesOut = netBalance.mul(_shareNumerator).div(_shareDenominator);
+    if (poolSharesOut > 0) {
+      IERC20(_fToken).safeTransfer(_receiver, poolSharesOut);
+    }
+    _updateStoredBalance();
+    emit WithdrawInKind(_receiver, _shareNumerator, _shareDenominator, poolSharesOut);
+  }
+
+  /**
+   * @notice Accrues the fee and refreshes the cached balance, so the vault's share price
+   * reflects the yield source's live rate.
+   * @dev Called by an in-kind vault before it prices a deposit or a withdrawal. Without it
+   * a depositor could mint at a stale cached price and immediately redeem the true
+   * pro-rata token slice, taking unaccrued yield from the holders who stay.
+   */
+  function syncBalance() external restricted {
+    _accrueFee();
+    _updateStoredBalance();
+  }
+
+  /**
+   * @dev The pending fee as it would stand immediately after an accrual.
+   * Mirrors {_accrueFee}, high water mark included: a gain first repays whatever
+   * `lossCarry` is outstanding and only the excess is charged. Reading it without that
+   * would overstate the fee and carve too many shares out of an in-kind payout.
+   */
+  function _simulatedPendingFee() internal view returns (uint256) {
+    uint256 pending = pendingFee();
+    uint256 balance = currentBalance();
+    uint256 stored = storedBalance();
+    if (balance <= stored) {
+      return pending;
+    }
+    uint256 gain = balance.sub(stored);
+    uint256 carry = lossCarry();
+    if (carry >= gain) {
+      return pending;
+    }
+    return pending.add(gain.sub(carry).mul(totalFeeNumerator()).div(feeDenominator()));
+  }
+
+  /**
+   * @notice The invested balance as it would stand right after {syncBalance}, i.e. priced
+   * off the yield source's live rate rather than the cached one.
+   * @dev Used by an in-kind vault to quote deposits and withdrawals, so previews match the
+   * synced rate execution actually uses.
+   * @return Live invested underlying balance, net of the pending fee.
+   */
+  function syncedInvestedUnderlyingBalance() public view returns (uint256) {
+    uint256 gross = IERC20(underlying()).balanceOf(address(this)).add(currentBalance());
+    uint256 pending = _simulatedPendingFee();
+    return gross > pending ? gross.sub(pending) : 0;
+  }
+
+  /**
+   * @notice Estimates the position-token payout of {withdrawInKind}, including the fee
+   * that would accrue at execution time.
+   * @param _shareNumerator Numerator of the redeemed fraction.
+   * @param _shareDenominator Denominator of the redeemed fraction.
+   * @return Estimated amount of position tokens that would be transferred.
+   */
+  function previewWithdrawInKind(
+    uint256 _shareNumerator,
+    uint256 _shareDenominator
+  ) public view returns (uint256) {
+    if (_shareDenominator == 0) {
+      return 0;
+    }
+    address _fToken = fToken();
+    uint256 balance = IERC20(_fToken).balanceOf(address(this));
+    uint256 feeShares = IERC4626(_fToken).previewWithdraw(_simulatedPendingFee());
+    uint256 netBalance = balance > feeShares ? balance.sub(feeShares) : 0;
+    return netBalance.mul(_shareNumerator).div(_shareDenominator);
   }
 
   /**
