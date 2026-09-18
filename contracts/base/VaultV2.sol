@@ -13,7 +13,7 @@ contract VaultV2 is IERC4626, VaultV1 {
         return underlying();
     }
 
-    function totalAssets() public view override returns (uint256) {
+    function totalAssets() public view virtual override returns (uint256) {
         return underlyingBalanceWithInvestment();
     }
 
