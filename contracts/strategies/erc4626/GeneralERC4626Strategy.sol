@@ -23,7 +23,7 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
   /// @notice Emitted when the vault refused a deposit and the underlying was left idle.
   event SupplyDeferred(uint256 amount);
   /// @notice Emitted when a holder was paid out in the yield source's own shares.
-  event WithdrawInKind(address indexed receiver, uint256 shareNumerator, uint256 shareDenominator, uint256 poolSharesOut);
+  event WithdrawInKind(address indexed receiver, uint256 shareNumerator, uint256 shareDenominator, uint256 assetsOut, uint256 poolSharesOut);
 
   address public constant harvestMSIG = address(0xF49440C1F012d041802b25A73e5B0B9166a75c02);
 
@@ -517,40 +517,61 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
   // ========================= In-Kind Redemption =========================
 
   /**
-   * @notice Transfers `_shareNumerator / _shareDenominator` of the strategy's position
-   * tokens - net of the shares backing accrued fees - straight to `_receiver`.
+   * @notice Hands `_receiver` their `_shareNumerator / _shareDenominator` slice of everything
+   * this strategy holds: idle underlying and the yield source's own shares, net of what
+   * backs the accrued fee.
    * @dev Called by an in-kind vault when a holder redeems in kind, so they can exit even
-   * while the yield source has no redeemable liquidity. The fraction is the holder's share
-   * of the vault's supply, so the payout is exactly proportional to the tokens actually
-   * held and does not depend on any cached exchange rate.
+   * while the yield source refuses redemptions. Both legs are paid, so nothing the strategy
+   * holds is invisible to the redeemer - in particular underlying that arrived while the
+   * yield source was closed and is still waiting to be supplied. The fraction is the
+   * holder's share of the vault's supply, so the payout is exactly proportional and does
+   * not depend on any cached exchange rate.
    *
-   * The shares backing `pendingFee` are carved out before the split, so an in-kind exit
-   * cannot walk off with fees the strategy has not yet collected. `previewWithdraw` is the
-   * right measure for that carve-out: it grosses up for any exit fee the yield source
-   * charges, so what stays behind really is worth `pendingFee`.
+   * The fee is carved out once: from idle first, the remainder from the position - the
+   * same order `_handleFee` pays it in. `previewWithdraw` measures the position part, so
+   * it is grossed up for any exit fee the yield source charges and what stays behind really
+   * is worth the fee.
    * @param _shareNumerator Numerator of the redeemed fraction (redeemed vault shares).
    * @param _shareDenominator Denominator of the fraction (vault supply before the burn).
-   * @param _receiver Address receiving the position tokens.
-   * @return poolSharesOut Amount of position tokens transferred.
+   * @param _receiver Address receiving the underlying and the position tokens.
+   * @return assetsOut Idle underlying transferred.
+   * @return poolSharesOut Position tokens transferred.
    */
   function withdrawInKind(
     uint256 _shareNumerator,
     uint256 _shareDenominator,
     address _receiver
-  ) external restricted returns (uint256 poolSharesOut) {
+  ) external restricted returns (uint256 assetsOut, uint256 poolSharesOut) {
     require(_shareDenominator > 0, "denominator must be greater than 0");
     require(_shareNumerator <= _shareDenominator, "numerator must not exceed denominator");
     _accrueFee();
-    address _fToken = fToken();
-    uint256 balance = IERC20(_fToken).balanceOf(address(this));
-    uint256 feeShares = IERC4626(_fToken).previewWithdraw(pendingFee());
-    uint256 netBalance = balance > feeShares ? balance.sub(feeShares) : 0;
-    poolSharesOut = netBalance.mul(_shareNumerator).div(_shareDenominator);
+    (uint256 netIdle, uint256 netShares) = _inKindDistributable(pendingFee());
+    assetsOut = netIdle.mul(_shareNumerator).div(_shareDenominator);
+    poolSharesOut = netShares.mul(_shareNumerator).div(_shareDenominator);
+    if (assetsOut > 0) {
+      IERC20(underlying()).safeTransfer(_receiver, assetsOut);
+    }
     if (poolSharesOut > 0) {
-      IERC20(_fToken).safeTransfer(_receiver, poolSharesOut);
+      IERC20(fToken()).safeTransfer(_receiver, poolSharesOut);
     }
     _updateStoredBalance();
-    emit WithdrawInKind(_receiver, _shareNumerator, _shareDenominator, poolSharesOut);
+    emit WithdrawInKind(_receiver, _shareNumerator, _shareDenominator, assetsOut, poolSharesOut);
+  }
+
+  /**
+   * @dev What can be handed out in kind: idle underlying and position tokens, net of what
+   * backs `fee`. The fee comes out of idle first and then out of the position, so it is
+   * carved exactly once.
+   */
+  function _inKindDistributable(uint256 fee) internal view returns (uint256 netIdle, uint256 netShares) {
+    address _pool = fToken();
+    uint256 idle = IERC20(underlying()).balanceOf(address(this));
+    uint256 shares = IERC20(_pool).balanceOf(address(this));
+    uint256 feeFromIdle = Math.min(fee, idle);
+    netIdle = idle.sub(feeFromIdle);
+    uint256 feeFromPosition = fee.sub(feeFromIdle);
+    uint256 feeShares = feeFromPosition > 0 ? IERC4626(_pool).previewWithdraw(feeFromPosition) : 0;
+    netShares = shares > feeShares ? shares.sub(feeShares) : 0;
   }
 
   /**
@@ -600,24 +621,23 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
   }
 
   /**
-   * @notice Estimates the position-token payout of {withdrawInKind}, including the fee
-   * that would accrue at execution time.
+   * @notice Estimates both legs of {withdrawInKind} for a given fraction, including the
+   * fee that would accrue at execution time.
    * @param _shareNumerator Numerator of the redeemed fraction.
    * @param _shareDenominator Denominator of the redeemed fraction.
-   * @return Estimated amount of position tokens that would be transferred.
+   * @return assetsOut Estimated idle underlying that would be transferred.
+   * @return poolSharesOut Estimated position tokens that would be transferred.
    */
   function previewWithdrawInKind(
     uint256 _shareNumerator,
     uint256 _shareDenominator
-  ) public view returns (uint256) {
+  ) public view returns (uint256 assetsOut, uint256 poolSharesOut) {
     if (_shareDenominator == 0) {
-      return 0;
+      return (0, 0);
     }
-    address _fToken = fToken();
-    uint256 balance = IERC20(_fToken).balanceOf(address(this));
-    uint256 feeShares = IERC4626(_fToken).previewWithdraw(_simulatedPendingFee());
-    uint256 netBalance = balance > feeShares ? balance.sub(feeShares) : 0;
-    return netBalance.mul(_shareNumerator).div(_shareDenominator);
+    (uint256 netIdle, uint256 netShares) = _inKindDistributable(_simulatedPendingFee());
+    assetsOut = netIdle.mul(_shareNumerator).div(_shareDenominator);
+    poolSharesOut = netShares.mul(_shareNumerator).div(_shareDenominator);
   }
 
   /**
