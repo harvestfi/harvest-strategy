@@ -4,6 +4,7 @@ pragma solidity 0.8.26;
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "../../base/interface/IUniversalLiquidator.sol";
 import "../../base/upgradability/BaseUpgradeableStrategy.sol";
 import "../../base/interface/IERC4626.sol";
@@ -197,6 +198,19 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
   }
 
   /**
+   * @dev Smallest reward balance worth a swap: a millionth of a whole token, whatever
+   * the token's decimals - 1e12 wei of WETH, a single unit of USDC. Read from the token
+   * because a fixed 18-decimal dust constant is a million USDC on a 6-decimal reward
+   * token, and the sale then never runs.
+   * @param _token The token about to be sold.
+   * @return The balance at or below which the token is left unsold.
+   */
+  function _sellFloor(address _token) internal view returns (uint256) {
+    uint256 dec = IERC20Metadata(_token).decimals();
+    return dec > 6 ? 10 ** (dec - 6) : 1;
+  }
+
+  /**
    * @notice Processes any pending fees, redeems the fee amount, and sends to the controller.
    */
   function _handleFee() internal {
@@ -342,7 +356,7 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
       if (token == _rewardToken) continue;
       _syncRewardStream(token);
       uint256 toSell = _pullClaimable(token);
-      if (toSell > 1e3) {
+      if (toSell > _sellFloor(token)) {
         IERC20(token).safeApprove(_universalLiquidator, 0);
         IERC20(token).safeApprove(_universalLiquidator, toSell);
         IUniversalLiquidator(_universalLiquidator).swap(token, _rewardToken, toSell, 1, address(this));
@@ -352,7 +366,7 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
     _notifyProfitInRewardToken(_rewardToken, rewardBalance);
     uint256 remainingRewardBalance = IERC20(_rewardToken).balanceOf(address(this));
 
-    if (remainingRewardBalance <= 1e12) {
+    if (remainingRewardBalance <= _sellFloor(_rewardToken)) {
       return;
     }
   
