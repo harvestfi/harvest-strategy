@@ -188,6 +188,34 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
   }
 
   /**
+   * @dev Scales the loss carry down by the share of the strategy's value that is leaving.
+   * The carry is an absolute amount the position must earn back before a fee is charged
+   * again, and it belongs to the holders who bore the loss. When some of them exit they
+   * take their share of the loss with them, so the carry that stood for it leaves too;
+   * left whole, it would go on shielding the smaller position - and anyone depositing
+   * after - from the fee.
+   *
+   * Called after `_accrueFee`, so whatever carry the accrual has just consumed is gone,
+   * and before the payout, so `total` is what `leaving` was measured against. On an exit
+   * served through the vault the strategy only sees what leaves it, not the exiting
+   * holder's share of the vault: when the vault pays part of the exit from its own idle
+   * the carry is scaled a little less than that share, never more.
+   * @param leaving Underlying value leaving the strategy.
+   * @param total Underlying value the strategy held before the exit.
+   */
+  function _scaleLossCarry(uint256 leaving, uint256 total) internal {
+    uint256 carry = lossCarry();
+    if (carry == 0) {
+      return;
+    }
+    if (leaving >= total) {
+      setUint256(_LOSS_CARRY_SLOT, 0);
+      return;
+    }
+    setUint256(_LOSS_CARRY_SLOT, carry.mul(total.sub(leaving)).div(total));
+  }
+
+  /**
    * @notice Smallest fee worth paying out. Below this it stays pending and is retried on
    * the next call, rather than spending gas forwarding dust.
    * @dev Virtual so a strategy on a low-decimal underlying can lower it.
@@ -285,6 +313,8 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
    */
   function withdrawAllToVault() public restricted {
     _handleFee();
+    // Nothing stays invested, so there is nothing left to earn back.
+    _scaleLossCarry(1, 1);
     address _underlying = underlying();
     _redeemAll();
     // Keep back whatever fee `_handleFee` could not pay out - it is below the dust floor,
@@ -322,6 +352,7 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
    */
   function withdrawToVault(uint256 amountUnderlying) public restricted {
     _accrueFee();
+    _scaleLossCarry(amountUnderlying, investedUnderlyingBalance());
     address _underlying = underlying();
     uint256 balance = IERC20(_underlying).balanceOf(address(this));
     if (amountUnderlying <= balance) {
@@ -559,6 +590,7 @@ contract GeneralERC4626Strategy is BaseUpgradeableStrategy, IHardWorkHooks {
     require(_shareDenominator > 0, "denominator must be greater than 0");
     require(_shareNumerator <= _shareDenominator, "numerator must not exceed denominator");
     _accrueFee();
+    _scaleLossCarry(_shareNumerator, _shareDenominator);
     (uint256 netIdle, uint256 netShares) = _inKindDistributable(pendingFee());
     assetsOut = netIdle.mul(_shareNumerator).div(_shareDenominator);
     poolSharesOut = netShares.mul(_shareNumerator).div(_shareDenominator);
