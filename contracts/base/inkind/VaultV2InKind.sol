@@ -72,7 +72,7 @@ contract VaultV2InKind is VaultV2 {
      * @param _shares Number of vault shares to redeem.
      * @param _receiver Address receiving the position tokens and underlying.
      * @param _owner Address whose vault shares are burned.
-     * @return assetsOut Underlying transferred (pro-rata share of the vault's idle balance).
+     * @return assetsOut Underlying transferred: the pro-rata share of idle in the vault and in the strategy.
      * @return poolSharesOut Position tokens transferred.
      */
     function redeemInKind(
@@ -95,11 +95,15 @@ contract VaultV2InKind is VaultV2 {
         }
         _burn(_owner, _shares);
 
-        assetsOut = underlyingBalanceInVault().mul(_shares).div(totalSupplyBefore);
-        poolSharesOut = IInKindStrategy(strategy()).withdrawInKind(_shares, totalSupplyBefore, _receiver);
+        // Two sources of underlying: the vault's own idle, paid here, and whatever is idle
+        // in the strategy, which the strategy pays directly. Both count toward the payout.
+        uint256 vaultAssets = underlyingBalanceInVault().mul(_shares).div(totalSupplyBefore);
+        (uint256 strategyAssets, uint256 poolShares) = IInKindStrategy(strategy()).withdrawInKind(_shares, totalSupplyBefore, _receiver);
+        assetsOut = vaultAssets.add(strategyAssets);
+        poolSharesOut = poolShares;
         require(assetsOut > 0 || poolSharesOut > 0, "nothing to redeem");
-        if (assetsOut > 0) {
-            IERC20Upgradeable(underlying()).safeTransfer(_receiver, assetsOut);
+        if (vaultAssets > 0) {
+            IERC20Upgradeable(underlying()).safeTransfer(_receiver, vaultAssets);
         }
 
         emit RedeemInKind(msg.sender, _receiver, _owner, _shares, assetsOut, poolSharesOut);
@@ -108,7 +112,7 @@ contract VaultV2InKind is VaultV2 {
     /**
      * @notice Estimates the payout of {redeemInKind} for a given number of vault shares.
      * @param _shares Number of vault shares to redeem.
-     * @return assetsOut Estimated underlying payout.
+     * @return assetsOut Estimated underlying payout, vault idle plus strategy idle.
      * @return poolSharesOut Estimated position-token payout.
      */
     function previewRedeemInKind(uint256 _shares) public view returns (uint256 assetsOut, uint256 poolSharesOut) {
@@ -116,8 +120,9 @@ contract VaultV2InKind is VaultV2 {
         if (_shares == 0 || supply == 0 || strategy() == address(0)) {
             return (0, 0);
         }
-        assetsOut = underlyingBalanceInVault().mul(_shares).div(supply);
-        poolSharesOut = IInKindStrategy(strategy()).previewWithdrawInKind(_shares, supply);
+        (uint256 strategyAssets, uint256 poolShares) = IInKindStrategy(strategy()).previewWithdrawInKind(_shares, supply);
+        assetsOut = underlyingBalanceInVault().mul(_shares).div(supply).add(strategyAssets);
+        poolSharesOut = poolShares;
     }
 
     /**

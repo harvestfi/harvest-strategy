@@ -7,8 +7,8 @@ pragma solidity 0.8.26;
  * so strategies without these functions remain compatible with these vaults.
  */
 interface IInKindStrategy {
-    function withdrawInKind(uint256 shareNumerator, uint256 shareDenominator, address receiver) external returns (uint256);
-    function previewWithdrawInKind(uint256 shareNumerator, uint256 shareDenominator) external view returns (uint256);
+    function withdrawInKind(uint256 shareNumerator, uint256 shareDenominator, address receiver) external returns (uint256 assetsOut, uint256 poolSharesOut);
+    function previewWithdrawInKind(uint256 shareNumerator, uint256 shareDenominator) external view returns (uint256 assetsOut, uint256 poolSharesOut);
     function syncBalance() external;
     function syncedInvestedUnderlyingBalance() external view returns (uint256);
     function rewardPool() external view returns (address);
